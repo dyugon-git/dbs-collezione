@@ -782,8 +782,18 @@
           ↗ Crea token (scope: gist)
         </a>
       </label>
-      <input type="password" id="gist-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
-      <span style="font-size:11px;color:var(--text3)">Salvato solo nel localStorage di questo browser, mai trasmesso altrove.</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="password" id="gist-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" style="flex:1">
+        <button type="button" class="btn btn-sm" onclick="toggleTokenVisibility()" title="Mostra/nascondi token" id="token-eye-btn" style="padding:7px 10px;flex-shrink:0">
+          <svg id="token-eye-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:var(--text3)">Salvato solo nel localStorage di questo browser.</span>
+        <button type="button" class="btn btn-sm" onclick="forgetGistCredentials()" style="font-size:11px;color:var(--red);border-color:var(--red);padding:3px 8px">
+          Dimentica credenziali
+        </button>
+      </div>
     </div>
 
     <div class="form-field">
@@ -1357,6 +1367,30 @@ function initGistBtnState() {
     document.getElementById('gist-btn').classList.add('synced');
     document.getElementById('gist-btn-label').textContent = '✓ Gist';
   }
+}
+
+function toggleTokenVisibility() {
+  const input = document.getElementById('gist-token');
+  const icon  = document.getElementById('token-eye-icon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    input.type = 'password';
+    icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+
+function forgetGistCredentials() {
+  if (!confirm('Rimuovere token e Gist ID salvati su questo browser?')) return;
+  localStorage.removeItem(GIST_TOKEN_KEY);
+  localStorage.removeItem(GIST_ID_KEY);
+  document.getElementById('gist-token').value = '';
+  document.getElementById('gist-id').value    = '';
+  document.getElementById('gist-btn').classList.remove('synced');
+  document.getElementById('gist-btn-label').textContent = 'Gist Sync';
+  updateGistIdHint();
+  setGistStatus('Credenziali rimosse da questo browser.', 'info');
 }
 
 // --- TOAST ---
