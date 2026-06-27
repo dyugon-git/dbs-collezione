@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DBS Fusion World — Collezione</title>
+<style>
+  :root {
+    --bg: #0a0a12;
+    --surface: #12121e;
+    --surface2: #1a1a2e;
+    --surface3: #22223a;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #f0f0f8;
+    --text2: #9090b0;
+    --text3: #5a5a80;
+    --accent: #e8630a;
+    --accent2: #ff9500;
+    --green: #00c97a;
+    --red: #ff4060;
+    --radius: 10px;
+    --radius2: 16px;
+    /* Rarità colori */
+    --scr: #d4af37;
+    --scr2: #ffe066;
+    --lr: #c084fc;
+    --lr2: #e9d5ff;
+    --sr: #67e8f9;
+    --sr2: #cffafe;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+  }
+  .logo span { color: var(--text2); font-weight: 400; font-size: 13px; margin-left: 8px; background: none; -webkit-background-clip: unset; -webkit-text-fill-color: unset; }
+  .header-stats {
+    display: flex;
+    gap: 20px;
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--text2);
+  }
+  .header-stats strong { color: var(--text); }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface3); border-color: rgba(255,255,255,0.25); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* TOOLBAR */
+  .toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 180px;
+    max-width: 280px;
+  }
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+  input[type=text], input[type=number], select, textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .search-wrap input { width: 100%; padding-left: 34px; }
+  select { cursor: pointer; }
+  select option { background: var(--surface2); }
+  .filter-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .filter-pill {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filter-pill.rarity-pill { font-weight: 700; letter-spacing: 0.3px; }
+  .filter-pill.rarity-scr.active  { background: var(--scr); border-color: var(--scr); color: #000; }
+  .filter-pill.rarity-lr.active   { background: var(--lr); border-color: var(--lr); color: #1a0030; }
+  .filter-pill.rarity-sr.active   { background: var(--sr); border-color: var(--sr); color: #003344; }
+
+  .separator { width: 1px; height: 24px; background: var(--border2); }
+
+  /* LAYOUT */
+  .main { display: flex; align-items: flex-start; min-height: calc(100vh - 120px); }
+
+  /* GRID PANEL */
+  .grid-panel { flex: 1; padding: 20px 24px; }
+  .grid-panel::-webkit-scrollbar { width: 6px; }
+  .grid-panel::-webkit-scrollbar-track { background: transparent; }
+  .grid-panel::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+
+  /* RARITY GROUP */
+  .rarity-group { margin-bottom: 32px; }
+  .rarity-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .rarity-label {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 14px;
+    border-radius: 20px;
+  }
+  .rarity-label.scr { background: rgba(212,175,55,0.15); color: var(--scr2); border: 1px solid rgba(212,175,55,0.4); }
+  .rarity-label.lr  { background: rgba(192,132,252,0.15); color: var(--lr2); border: 1px solid rgba(192,132,252,0.4); }
+  .rarity-label.sr  { background: rgba(103,232,249,0.12); color: var(--sr2); border: 1px solid rgba(103,232,249,0.35); }
+  .rarity-label.none { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+  .rarity-divider { flex: 1; height: 1px; background: var(--border); }
+  .rarity-count { font-size: 12px; color: var(--text3); }
+
+  /* CARDS GRID */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+  }
+
+  /* CARD THUMB */
+  .card-thumb {
+    border-radius: var(--radius2);
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    overflow: visible;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .card-thumb:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card-thumb.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(232,99,10,0.3); }
+  .card-thumb.rarity-scr { border-color: rgba(212,175,55,0.55); background: linear-gradient(160deg, rgba(212,175,55,0.13) 0%, rgba(212,175,55,0.05) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-scr:hover { border-color: var(--scr); background: linear-gradient(160deg, rgba(212,175,55,0.22) 0%, rgba(212,175,55,0.08) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-scr.selected { border-color: var(--scr); box-shadow: 0 0 0 2px rgba(212,175,55,0.35); background: linear-gradient(160deg, rgba(212,175,55,0.22) 0%, rgba(212,175,55,0.08) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-lr { border-color: rgba(192,132,252,0.55); background: linear-gradient(160deg, rgba(192,132,252,0.14) 0%, rgba(192,132,252,0.05) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-lr:hover { border-color: var(--lr); background: linear-gradient(160deg, rgba(192,132,252,0.24) 0%, rgba(192,132,252,0.08) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-lr.selected { border-color: var(--lr); box-shadow: 0 0 0 2px rgba(192,132,252,0.35); background: linear-gradient(160deg, rgba(192,132,252,0.24) 0%, rgba(192,132,252,0.08) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-sr { border-color: rgba(103,232,249,0.45); background: linear-gradient(160deg, rgba(103,232,249,0.11) 0%, rgba(103,232,249,0.04) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-sr:hover { border-color: var(--sr); background: linear-gradient(160deg, rgba(103,232,249,0.20) 0%, rgba(103,232,249,0.07) 60%, var(--surface) 100%); }
+  .card-thumb.rarity-sr.selected { border-color: var(--sr); box-shadow: 0 0 0 2px rgba(103,232,249,0.3); background: linear-gradient(160deg, rgba(103,232,249,0.20) 0%, rgba(103,232,249,0.07) 60%, var(--surface) 100%); }
+
+  /* IMG WRAP — no overflow hidden so badge stays outside */
+  .card-thumb .img-wrap {
+    width: 100%;
+    aspect-ratio: 5/7;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    border-radius: calc(var(--radius2) - 1.5px) calc(var(--radius2) - 1.5px) 0 0;
+  }
+  .card-thumb .img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: filter 0.2s;
+  }
+  /* MISSING = desaturated */
+  .card-thumb.missing .img-wrap img {
+    filter: grayscale(100%) brightness(0.6);
+  }
+  .card-thumb .img-wrap .no-img {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--text3);
+    font-size: 11px;
+    text-align: center;
+    padding: 8px;
+  }
+  .card-thumb .img-wrap .no-img svg { opacity: 0.4; }
+  /* missing tint on no-img placeholder */
+  .card-thumb.missing .img-wrap .no-img { filter: grayscale(100%) brightness(0.7); }
+
+  .card-thumb .card-footer {
+    padding: 8px 8px 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .card-thumb .footer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  .card-thumb .card-code    { font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: 0.5px; }
+  .card-thumb .card-name    { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-thumb .card-price   { font-size: 11px; color: var(--accent2); font-weight: 600; }
+  .card-thumb .status-emoji { font-size: 14px; line-height: 1; flex-shrink: 0; }
+
+  /* DETAIL PANEL */
+  .detail-panel {
+    width: 340px;
+    min-width: 280px;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    max-height: 100vh;
+    box-sizing: border-box;
+  }
+  .detail-panel::-webkit-scrollbar { width: 6px; }
+  .detail-panel::-webkit-scrollbar-track { background: transparent; }
+  .detail-panel::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+  .detail-panel.empty { align-items: center; justify-content: center; color: var(--text3); font-size: 14px; text-align: center; padding: 24px; }
+  .detail-panel.empty svg { margin-bottom: 12px; opacity: 0.3; }
+
+  .detail-img-wrap {
+    width: 100%;
+    aspect-ratio: 5/7;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .detail-img-wrap img { width: 100%; height: 100%; object-fit: contain; transition: filter 0.2s; }
+  .detail-img-wrap.missing img { filter: grayscale(100%) brightness(0.6); }
+  .detail-img-wrap .no-img-big {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--text3);
+    font-size: 13px;
+  }
+  .detail-img-wrap .no-img-big svg { opacity: 0.25; }
+
+  .detail-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .detail-code { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase; }
+  .detail-name { font-size: 20px; font-weight: 700; line-height: 1.2; }
+  .detail-set  { font-size: 13px; color: var(--text2); }
+
+  .rarity-badge-detail {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 3px 12px;
+    border-radius: 20px;
+    margin-top: 4px;
+  }
+  .rarity-badge-detail.scr { background: rgba(212,175,55,0.15); color: var(--scr2); border: 1px solid rgba(212,175,55,0.4); }
+  .rarity-badge-detail.lr  { background: rgba(192,132,252,0.15); color: var(--lr2); border: 1px solid rgba(192,132,252,0.4); }
+  .rarity-badge-detail.sr  { background: rgba(103,232,249,0.12); color: var(--sr2); border: 1px solid rgba(103,232,249,0.35); }
+  .rarity-badge-detail.none { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+
+  .detail-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .detail-label { font-size: 13px; color: var(--text2); }
+  .detail-value { font-size: 14px; font-weight: 600; }
+
+  .status-toggle { display: flex; gap: 8px; }
+  .status-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: var(--radius);
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .status-btn.have    { border-color: var(--green); }
+  .status-btn.have.active    { background: var(--green); color: #002a16; }
+  .status-btn.missing { border-color: rgba(255,255,255,0.15); }
+  .status-btn.missing.active { background: var(--surface3); color: var(--text2); }
+
+  .detail-actions { display: flex; gap: 8px; }
+
+  /* MODAL */
+  .modal-bg {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius2);
+    padding: 28px;
+    width: 480px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .modal h2 { font-size: 18px; font-weight: 700; }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-field label { font-size: 13px; color: var(--text2); font-weight: 500; }
+  .form-field input, .form-field select, .form-field textarea { width: 100%; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px 18px;
+    font-size: 14px;
+    z-index: 300;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.25s;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error   { border-color: var(--red);   color: var(--red);   }
+
+  /* EMPTY STATE */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    gap: 16px;
+    color: var(--text3);
+    text-align: center;
+  }
+  .empty-state svg { opacity: 0.25; }
+  .empty-state p   { font-size: 15px; }
+  .empty-state small { font-size: 13px; }
+
+  .path-hint {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text2);
+    font-family: monospace;
+    word-break: break-all;
+  }
+  .path-hint strong { color: var(--accent); }
+
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface3);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+    margin-left: 6px;
+  }
+
+  @media (max-width: 700px) {
+    .detail-panel { display: none; }
+    .header-stats { display: none; }
+  }
+
+  /* NAV TABS */
+  .nav-tabs { display: flex; gap: 2px; margin-left: 16px; }
+  .nav-tab {
+    padding: 6px 16px;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nav-tab:hover { background: var(--surface3); color: var(--text); }
+  .nav-tab.active { background: var(--surface3); border-color: var(--border2); color: var(--text); }
+
+  /* SORT CONTROLS */
+  .sort-group { display: flex; gap: 6px; align-items: center; }
+  .sort-btn {
+    padding: 5px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .sort-btn:hover { background: var(--surface3); }
+  .sort-btn.active { background: var(--surface3); border-color: var(--border2); color: var(--text); }
+  .sort-arrow { font-size: 10px; }
+
+  /* STATS PAGE */
+  .stats-page { flex: 1; padding: 28px 32px; display: none; }
+  .stats-page.visible { display: block; }
+  .stats-page::-webkit-scrollbar { width: 6px; }
+  .stats-page::-webkit-scrollbar-track { background: transparent; }
+  .stats-page::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+
+  .stats-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .kpi-label { font-size: 12px; color: var(--text3); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  .kpi-value { font-size: 26px; font-weight: 700; }
+  .kpi-sub   { font-size: 12px; color: var(--text2); }
+
+  .stats-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+  @media (max-width: 800px) { .stats-charts-row { grid-template-columns: 1fr; } }
+
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text2); letter-spacing: 0.3px; }
+  .chart-canvas-wrap { position: relative; width: 100%; max-width: 260px; margin: 0 auto 16px; }
+  .chart-canvas-wrap canvas { display: block; }
+  .chart-legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { color: var(--text2); flex: 1; }
+  .legend-val { font-weight: 600; color: var(--text); }
+  .legend-pct { color: var(--text3); font-size: 11px; min-width: 36px; text-align: right; }
+
+  .chart-empty { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 13px; }
+
+
+  /* STATS CONFIGURATOR */
+  .stats-configurator {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 860px) { .stats-configurator { grid-template-columns: 1fr; } }
+
+  .chart-card-full { display: flex; flex-direction: column; gap: 16px; }
+
+  .chart-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chart-ctrl-group { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl-label { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3); }
+  .ctrl-pills { display: flex; gap: 4px; }
+  .ctrl-pill {
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .ctrl-pill:hover { background: var(--surface3); color: var(--text); }
+  .ctrl-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .chart-ctrl-group select { font-size: 12px; padding: 4px 8px; min-width: 100px; }
+
+  .chart-body { display: flex; align-items: flex-start; gap: 16px; }
+  .chart-body .chart-canvas-wrap { flex-shrink: 0; }
+  .chart-body .chart-legend { flex: 1; }
+
+  .chart-subtitle { font-size: 11px; color: var(--text3); text-align: center; }
+
+
+  /* PIE TOOLTIP */
+  .pie-tooltip {
+    position: fixed;
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 500;
+    display: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  .pie-tooltip .tt-label { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .pie-tooltip .tt-val   { color: var(--accent2); }
+  .pie-tooltip .tt-pct   { color: var(--text3); font-size: 11px; }
+
+
+  /* GIST STATUS */
+  #gist-status.ok    { background: rgba(0,201,122,0.08); border-color: var(--green); color: var(--green); }
+  #gist-status.err   { background: rgba(255,64,96,0.08);  border-color: var(--red);   color: var(--red);   }
+  #gist-status.info  { background: rgba(74,158,255,0.08); border-color: var(--blue2); color: var(--blue2); }
+  #gist-btn.synced   { border-color: var(--green); color: var(--green); }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">DBS:FW</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchPage('collection',this)">Collezione</button>
+    <button class="nav-tab" onclick="switchPage('stats',this)">Statistiche</button>
+  </div>
+  <div class="header-stats">
+    <span>Totale: <strong id="stat-total">0</strong></span>
+    <span>✅ <strong id="stat-have" style="color:var(--green)">0</strong></span>
+    <span>❌ <strong id="stat-missing" style="color:var(--text3)">0</strong></span>
+    <span>Valore: <strong id="stat-value" style="color:var(--accent2)">€0</strong></span>
+  </div>
+  <button class="btn btn-primary" onclick="openModal()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Aggiungi carta
+  </button>
+  <button class="btn btn-sm" onclick="exportJSON()" title="Esporta backup JSON">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export
+  </button>
+  <label class="btn btn-sm" title="Importa backup JSON" style="cursor:pointer">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Import
+    <input type="file" accept=".json" onchange="importJSON(event)" style="display:none">
+  </label>
+  <button class="btn btn-sm" onclick="openGistModal()" title="Sincronizza con GitHub Gist" id="gist-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+    <span id="gist-btn-label">Gist Sync</span>
+  </button>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="search-wrap">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="search" placeholder="Cerca codice o nome…" oninput="renderGrid()">
+  </div>
+  <select id="filter-set" onchange="renderGrid()">
+    <option value="">Tutti i set</option>
+  </select>
+  <div class="separator"></div>
+  <div class="filter-group">
+    <button class="filter-pill active" data-filter="all"     onclick="setFilter('all',this)">Tutte <span class="count-badge" id="cnt-all">0</span></button>
+    <button class="filter-pill"        data-filter="have"    onclick="setFilter('have',this)">✅ <span class="count-badge" id="cnt-have">0</span></button>
+    <button class="filter-pill"        data-filter="missing" onclick="setFilter('missing',this)">❌ <span class="count-badge" id="cnt-missing">0</span></button>
+  </div>
+  <div class="separator"></div>
+  <div class="filter-group">
+    <button class="filter-pill rarity-pill"         data-rarity="" onclick="setRarity('',this)">Tutte</button>
+    <button class="filter-pill rarity-pill rarity-scr" data-rarity="SCR★" onclick="setRarity('SCR★',this)">SCR★</button>
+    <button class="filter-pill rarity-pill rarity-lr"  data-rarity="L★"   onclick="setRarity('L★',this)">L★</button>
+    <button class="filter-pill rarity-pill rarity-sr"  data-rarity="SR★"  onclick="setRarity('SR★',this)">SR★</button>
+  </div>
+  <div class="separator"></div>
+  <div class="sort-group">
+    <span style="font-size:12px;color:var(--text3)">Ordina:</span>
+    <button class="sort-btn active" data-sort="rarity" onclick="setSort('rarity',this)">Rarità</button>
+    <button class="sort-btn" data-sort="code" onclick="setSort('code',this)">Codice <span class="sort-arrow" id="sort-code-arrow">↑</span></button>
+    <button class="sort-btn" data-sort="price" onclick="setSort('price',this)">Prezzo <span class="sort-arrow" id="sort-price-arrow">↓</span></button>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px; align-items:center">
+    <label style="font-size:12px; color:var(--text2)">Cartella img:</label>
+    <input type="text" id="img-folder" placeholder="immagini/" value="immagini/" style="width:130px; font-size:12px; padding:6px 10px" oninput="saveImgFolder()">
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="grid-panel" id="grid-panel">
+    <div class="empty-state" id="empty-state">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="14" height="20" rx="2"/><line x1="8" y1="8" x2="12" y2="8"/><line x1="6" y1="12" x2="14" y2="12"/><line x1="6" y1="16" x2="12" y2="16"/></svg>
+      <p>Nessuna carta ancora</p>
+      <small>Clicca "Aggiungi carta" per iniziare la tua collezione</small>
+    </div>
+    <div id="groups-container"></div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="detail-panel empty" id="detail-panel">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="14" height="20" rx="2"/><circle cx="9" cy="11" r="3"/></svg>
+    <p>Seleziona una carta<br>per vedere i dettagli</p>
+  </div>
+</div>
+
+<!-- STATS PAGE -->
+<div class="stats-page" id="stats-page">
+  <!-- KPI row -->
+  <div class="stats-kpi-row" id="kpi-row"></div>
+
+  <!-- Chart configurator -->
+  <div class="stats-configurator">
+
+    <!-- LEFT chart -->
+    <div class="chart-card chart-card-full">
+      <div class="chart-controls">
+        <div class="chart-ctrl-group">
+          <span class="ctrl-label">Mostra</span>
+          <div class="ctrl-pills" id="left-mode">
+            <button class="ctrl-pill active" data-val="owned" onclick="setChartOpt('left','mode','owned',this)">Possedute</button>
+            <button class="ctrl-pill" data-val="missing" onclick="setChartOpt('left','mode','missing',this)">Mancanti</button>
+          </div>
+        </div>
+        <div class="chart-ctrl-group">
+          <span class="ctrl-label">Dividi per</span>
+          <div class="ctrl-pills" id="left-group">
+            <button class="ctrl-pill active" data-val="rarity" onclick="setChartOpt('left','group','rarity',this)">Rarità</button>
+            <button class="ctrl-pill" data-val="set" onclick="setChartOpt('left','group','set',this)">Espansione</button>
+          </div>
+        </div>
+        <div class="chart-ctrl-group">
+          <span class="ctrl-label">Metrica</span>
+          <div class="ctrl-pills" id="left-metric">
+            <button class="ctrl-pill active" data-val="value" onclick="setChartOpt('left','metric','value',this)">Valore €</button>
+            <button class="ctrl-pill" data-val="count" onclick="setChartOpt('left','metric','count',this)">Quantità</button>
+          </div>
+        </div>
+        <div class="chart-ctrl-group" id="left-filter-wrap" style="display:none">
+          <span class="ctrl-label">Filtro espansione</span>
+          <select id="left-filter-set" onchange="renderStats()">
+            <option value="">Tutte</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-body">
+        <div class="chart-canvas-wrap"><canvas id="chart-left" width="260" height="260"></canvas></div>
+        <div class="chart-legend" id="legend-left"></div>
+      </div>
+      <div class="chart-subtitle" id="subtitle-left"></div>
+    </div>
+
+    <!-- RIGHT chart -->
+    <div class="chart-card chart-card-full">
+      <div class="chart-controls">
+        <div class="chart-ctrl-group">
+          <span class="ctrl-label">Mostra</span>
+          <div class="ctrl-pills" id="right-mode">
+            <button class="ctrl-pill" data-val="owned" onclick="setChartOpt('right','mode','owned',this)">Possedute</button>
+            <button class="ctrl-pill active" data-val="missing" onclick="setChartOpt('right','mode','missing',this)">Mancanti</button>
+          </div>
+        </div>
+        <div class="chart-ctrl-group">
+          <span class="ctrl-label">Dividi per</span>
+          <div class="ctrl-pills" id="right-group">
+            <button class="ctrl-pill" data-val="rarity" onclick="setChartOpt('right','group','rarity',this)">Rarità</button>
+            <button class="ctrl-pill active" data-val="set" onclick="setChartOpt('right','group','set',this)">Espansione</button>
+          </div>
+        </div>
+        <div class="chart-ctrl-group">
+          <span class="ctrl-label">Metrica</span>
+          <div class="ctrl-pills" id="right-metric">
+            <button class="ctrl-pill active" data-val="value" onclick="setChartOpt('right','metric','value',this)">Valore €</button>
+            <button class="ctrl-pill" data-val="count" onclick="setChartOpt('right','metric','count',this)">Quantità</button>
+          </div>
+        </div>
+        <div class="chart-ctrl-group" id="right-filter-wrap" style="display:none">
+          <span class="ctrl-label">Filtro espansione</span>
+          <select id="right-filter-set" onchange="renderStats()">
+            <option value="">Tutte</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-body">
+        <div class="chart-canvas-wrap"><canvas id="chart-right" width="260" height="260"></canvas></div>
+        <div class="chart-legend" id="legend-right"></div>
+      </div>
+      <div class="chart-subtitle" id="subtitle-right"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PIE TOOLTIP -->
+<div class="pie-tooltip" id="pie-tooltip"><div class="tt-label" id="tt-label"></div><div class="tt-val" id="tt-val"></div><div class="tt-pct" id="tt-pct"></div></div>
+
+<!-- GIST MODAL -->
+<div class="modal-bg" id="gist-modal-bg" onclick="closeGistModalOnBg(event)">
+  <div class="modal" style="max-width:520px">
+    <h2 style="display:flex;align-items:center;gap:10px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      GitHub Gist Sync
+    </h2>
+
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">
+      I tuoi dati vengono salvati in un <strong style="color:var(--text)">Gist privato</strong> sul tuo account GitHub.<br>
+      Funziona da qualsiasi browser e dispositivo con lo stesso token.
+    </div>
+
+    <div class="form-field">
+      <label>GitHub Personal Access Token
+        <a href="https://github.com/settings/tokens/new?scopes=gist&description=DBS+FW+Collezione" target="_blank" rel="noopener"
+           style="font-size:11px;color:var(--blue2);margin-left:8px;text-decoration:none">
+          ↗ Crea token (scope: gist)
+        </a>
+      </label>
+      <input type="password" id="gist-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+      <span style="font-size:11px;color:var(--text3)">Salvato solo nel localStorage di questo browser, mai trasmesso altrove.</span>
+    </div>
+
+    <div class="form-field">
+      <label>Gist ID <span style="font-weight:400;color:var(--text3);font-size:11px">(lascia vuoto per crearne uno nuovo)</span></label>
+      <input type="text" id="gist-id" placeholder="es. a1b2c3d4e5f6... (32 caratteri)">
+      <span style="font-size:11px;color:var(--text3)" id="gist-id-hint"></span>
+    </div>
+
+    <div id="gist-status" style="display:none;font-size:13px;padding:10px 14px;border-radius:var(--radius);border:1px solid"></div>
+
+    <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
+      <button class="btn" onclick="closeGistModal()" style="margin-right:auto">Chiudi</button>
+      <button class="btn" onclick="gistPull()" id="btn-pull" style="color:var(--blue2);border-color:var(--blue2)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Pull (scarica dal Gist)
+      </button>
+      <button class="btn btn-primary" onclick="gistPush()" id="btn-push">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Push (salva sul Gist)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal-bg" onclick="closeModalOnBg(event)">
+  <div class="modal">
+    <h2 id="modal-title">Aggiungi carta</h2>
+    <div class="form-field">
+      <label>Codice carta * <span style="font-weight:400;color:var(--text3);font-size:11px">(es. FB01-140 — il set viene ricavato dal codice)</span></label>
+      <input type="text" id="f-code" placeholder="es. FB01-140" oninput="this.value=this.value.toUpperCase(); updateImgPreview()">
+    </div>
+    <div class="form-field">
+      <label>Nome carta</label>
+      <input type="text" id="f-name" placeholder="es. Son Goku">
+    </div>
+    <div class="form-row3">
+      <div class="form-field">
+        <label>Rarità</label>
+        <select id="f-rarity">
+          <option value="">— nessuna —</option>
+          <option value="SCR★">SCR★</option>
+          <option value="L★">L★</option>
+          <option value="SR★">SR★</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Stato</label>
+        <select id="f-status">
+          <option value="have">✅ Ho la carta</option>
+          <option value="missing">❌ Mi manca</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Prezzo acquisto (€)</label>
+        <input type="number" id="f-price" placeholder="0.00" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="form-field">
+      <label>Link mercato <span style="font-weight:400;color:var(--text3);font-size:11px">(URL per acquisto/vendita)</span></label>
+      <input type="text" id="f-url" placeholder="https://www.cardmarket.com/…">
+    </div>
+    <div class="form-field">
+      <label>Percorso immagine (automatico)</label>
+      <div class="path-hint" id="img-path-preview">
+        L'immagine verrà cercata in: <strong>immagini/[CODICE].jpg</strong><br>
+        <small style="color:var(--text3)">Supporta anche .png .webp .jpeg</small>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="saveCard()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+const DB_KEY = 'dbsfw_cards';
+const FOLDER_KEY = 'dbsfw_img_folder';
+let cards = [];
+let selectedId = null;
+let activeFilter = 'all';
+let activeRarity = '';
+let editingId = null;
+
+const RARITIES = ['SCR★', 'L★', 'SR★'];
+const RARITY_KEY = { 'SCR★': 'scr', 'L★': 'lr', 'SR★': 'sr' };
+const RARITY_ORDER = { 'SCR★': 0, 'L★': 1, 'SR★': 2, '': 3 };
+
+// --- STORAGE ---
+function loadCards() {
+  try { cards = JSON.parse(localStorage.getItem(DB_KEY) || '[]'); } catch { cards = []; }
+}
+function saveCards() { localStorage.setItem(DB_KEY, JSON.stringify(cards)); }
+function saveImgFolder() {
+  localStorage.setItem(FOLDER_KEY, document.getElementById('img-folder').value.trim());
+  renderDetail();
+}
+function getImgFolder() { return localStorage.getItem(FOLDER_KEY) || 'immagini/'; }
+
+// --- IMG ---
+function getImgSrc(code) {
+  if (!code) return null;
+  const folder = getImgFolder().replace(/\/?$/, '/');
+  const c = code.toUpperCase();
+  return [folder+c+'.jpg', folder+c+'.png', folder+c+'.webp', folder+c+'.jpeg'];
+}
+function imgWithFallback(srcs, alt) {
+  return `<img src="${srcs[0]}" alt="${alt}"
+    onerror="var s=${JSON.stringify(srcs)};var i=s.indexOf(this.src)+1;if(i<s.length){this.src=s[i];}else{this.style.display='none';var n=this.nextElementSibling;if(n)n.style.display='flex';}">`;
+}
+
+// --- FILTERS ---
+function setFilter(f, btn) {
+  activeFilter = f;
+  document.querySelectorAll('[data-filter]').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+function setRarity(r, btn) {
+  activeRarity = r;
+  document.querySelectorAll('[data-rarity]').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+
+function getFiltered() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  const setVal = document.getElementById('filter-set').value;
+  return cards.filter(c => {
+    if (activeFilter === 'have'    && c.status !== 'have')    return false;
+    if (activeFilter === 'missing' && c.status !== 'missing') return false;
+    if (activeRarity && c.rarity !== activeRarity) return false;
+    if (setVal && c.set !== setVal) return false;
+    if (q && !c.code.toLowerCase().includes(q) && !(c.name||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+// --- RENDER GRID ---
+function renderGrid() {
+  const filtered = getFiltered();
+  const container = document.getElementById('groups-container');
+  const empty = document.getElementById('empty-state');
+
+  // Stats (always from all cards)
+  const total   = cards.length;
+  const have    = cards.filter(c=>c.status==='have').length;
+  const missing = cards.filter(c=>c.status==='missing').length;
+  const value   = cards.filter(c=>c.status==='have'&&c.price).reduce((a,c)=>a+parseFloat(c.price||0),0);
+  document.getElementById('stat-total').textContent   = total;
+  document.getElementById('stat-have').textContent    = have;
+  document.getElementById('stat-missing').textContent = missing;
+  document.getElementById('stat-value').textContent   = '€'+value.toFixed(2);
+  document.getElementById('cnt-all').textContent      = total;
+  document.getElementById('cnt-have').textContent     = have;
+  document.getElementById('cnt-missing').textContent  = missing;
+
+  // Populate set filter
+  const sets = [...new Set(cards.map(c=>c.set).filter(Boolean))].sort();
+  const setSelect = document.getElementById('filter-set');
+  const curSet = setSelect.value;
+  setSelect.innerHTML = '<option value="">Tutti i set</option>' +
+    sets.map(s=>`<option value="${esc(s)}"${s===curSet?' selected':''}>${esc(s)}</option>`).join('');
+
+  if (filtered.length === 0) {
+    empty.style.display = 'flex';
+    container.innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  if (sortBy !== 'rarity') {
+    // Flat sorted grid
+    const sorted = sortCards(filtered);
+    container.innerHTML = `<div class="rarity-group"><div class="cards-grid">${sorted.map(c=>cardThumbHTML(c)).join('')}</div></div>`;
+  } else {
+    // Group by rarity, preserving order SCR★ > L★ > SR★ > (no rarity)
+    const groups = {};
+    filtered.forEach(c => {
+      const r = c.rarity || '';
+      if (!groups[r]) groups[r] = [];
+      groups[r].push(c);
+    });
+
+    const sortedKeys = Object.keys(groups).sort((a,b) => (RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99));
+    const showHeaders = activeRarity === '';
+
+    container.innerHTML = sortedKeys.map(r => {
+      const grpCards = groups[r];
+      const rKey = RARITY_KEY[r] || 'none';
+      const label = r || 'Rarità non specificata';
+      const haveCount = grpCards.filter(c=>c.status==='have').length;
+
+      const header = showHeaders ? `
+        <div class="rarity-header">
+          <span class="rarity-label ${rKey}">${label}</span>
+          <span class="rarity-count">${haveCount}/${grpCards.length}</span>
+          <div class="rarity-divider"></div>
+        </div>` : '';
+
+      return `<div class="rarity-group">
+        ${header}
+        <div class="cards-grid">${grpCards.map(c=>cardThumbHTML(c)).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function cardThumbHTML(c) {
+  const srcs = getImgSrc(c.code);
+  const sel  = c.id === selectedId ? ' selected' : '';
+  const rKey = RARITY_KEY[c.rarity] || '';
+  const rarCls = rKey ? ' rarity-'+rKey : '';
+  const misCls = c.status === 'missing' ? ' missing' : '';
+  const statusEmoji = c.status === 'have' ? '✅' : '❌';
+
+  return `<div class="card-thumb${sel}${rarCls}${misCls}" onclick="selectCard('${c.id}')">
+    <div class="img-wrap">
+      ${srcs ? imgWithFallback(srcs, c.code) : ''}
+      <div class="no-img" style="${srcs?'display:none':''}">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span>${esc(c.code)}</span>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-top">
+        <span class="card-code">${esc(c.code)}</span>
+        <span class="status-emoji">${statusEmoji}</span>
+      </div>
+      ${c.name  ? `<span class="card-name">${esc(c.name)}</span>`                      : ''}
+      ${c.price ? `<span class="card-price">€${parseFloat(c.price).toFixed(2)}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+// --- SELECT CARD ---
+function selectCard(id) {
+  selectedId = id;
+  document.querySelectorAll('.card-thumb').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll(`.card-thumb`).forEach(el => {
+    if (el.getAttribute('onclick') && el.getAttribute('onclick').includes(id)) el.classList.add('selected');
+  });
+  renderDetail();
+}
+
+function renderDetail() {
+  const panel = document.getElementById('detail-panel');
+  const card  = cards.find(c => c.id === selectedId);
+  if (!card) {
+    panel.className = 'detail-panel empty';
+    panel.innerHTML = `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="14" height="20" rx="2"/><circle cx="9" cy="11" r="3"/></svg><p>Seleziona una carta<br>per vedere i dettagli</p>`;
+    return;
+  }
+  panel.className = 'detail-panel';
+  const srcs  = getImgSrc(card.code);
+  const rKey  = RARITY_KEY[card.rarity] || 'none';
+  const misCls = card.status === 'missing' ? ' missing' : '';
+
+  panel.innerHTML = `
+    <div class="detail-img-wrap${misCls}">
+      ${srcs ? imgWithFallback(srcs, card.code) : ''}
+      <div class="no-img-big" style="${srcs?'display:none':''}">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span>Nessuna immagine</span>
+      </div>
+    </div>
+    <div class="detail-body">
+      <div>
+        <div class="detail-code">${esc(card.code)}</div>
+        <div class="detail-name">${esc(card.name||'—')}</div>
+        <div class="detail-set">${esc(card.set||'Set sconosciuto')}</div>
+        <span class="rarity-badge-detail ${rKey}">${card.rarity||'Rarità non specificata'}</span>
+      </div>
+      <div class="status-toggle">
+        <button class="status-btn have${card.status==='have'?' active':''}"    onclick="quickStatus('${card.id}','have')">✅ Ho la carta</button>
+        <button class="status-btn missing${card.status==='missing'?' active':''}" onclick="quickStatus('${card.id}','missing')">❌ Mi manca</button>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Prezzo acquisto</span>
+        <span class="detail-value">${card.price ? '€'+parseFloat(card.price).toFixed(2) : '—'}</span>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:14px;font-size:11px;color:var(--text3)">
+        Immagine cercata in:<br>
+        <span style="color:var(--accent);font-family:monospace">${getImgFolder()}${card.code.toUpperCase()}.jpg</span>
+      </div>
+      <div class="detail-actions">
+        <button class="btn" style="flex:1" onclick="openModal('${card.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Modifica
+        </button>
+        ${card.url ? `<a class="btn btn-sm" href="${card.url}" target="_blank" rel="noopener" style="color:var(--blue2);border-color:var(--blue2);text-decoration:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Mercato
+        </a>` : ''}
+        <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="deleteCard('${card.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Elimina
+        </button>
+      </div>
+    </div>`;
+}
+
+// --- QUICK STATUS ---
+function quickStatus(id, status) {
+  const card = cards.find(c => c.id === id);
+  if (!card) return;
+  card.status = status;
+  saveCards();
+  renderGrid();
+  renderDetail();
+  toast('Stato aggiornato', 'success');
+}
+
+// --- DELETE ---
+function deleteCard(id) {
+  if (!confirm('Eliminare questa carta dalla collezione?')) return;
+  cards = cards.filter(c => c.id !== id);
+  saveCards();
+  if (selectedId === id) selectedId = null;
+  renderGrid();
+  renderDetail();
+  toast('Carta eliminata');
+}
+
+// --- MODAL ---
+function openModal(id) {
+  editingId = id || null;
+  const card = id ? cards.find(c => c.id === id) : null;
+  document.getElementById('modal-title').textContent = card ? 'Modifica carta' : 'Aggiungi carta';
+  document.getElementById('f-code').value   = card ? card.code   : '';
+  document.getElementById('f-name').value   = card ? card.name   : '';
+  document.getElementById('f-rarity').value = card ? (card.rarity||'') : '';
+  document.getElementById('f-status').value = card ? card.status : 'have';
+  document.getElementById('f-price').value  = card ? (card.price||'') : '';
+  document.getElementById('f-url').value    = card ? (card.url||'') : '';
+  updateImgPreview();
+  document.getElementById('modal-bg').classList.add('open');
+  setTimeout(()=>document.getElementById('f-code').focus(), 100);
+}
+function updateImgPreview() {
+  const code   = document.getElementById('f-code').value.toUpperCase() || '[CODICE]';
+  const folder = getImgFolder();
+  document.getElementById('img-path-preview').innerHTML =
+    `L'immagine verrà cercata in: <strong>${folder}${code}.jpg</strong><br><small style="color:var(--text3)">Supporta anche .png .webp .jpeg</small>`;
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); editingId = null; }
+function closeModalOnBg(e) { if (e.target === document.getElementById('modal-bg')) closeModal(); }
+
+function saveCard() {
+  const code = document.getElementById('f-code').value.trim().toUpperCase();
+  if (!code) { alert('Il codice carta è obbligatorio.'); return; }
+  const dup = cards.find(c => c.code === code && c.id !== editingId);
+  if (dup) { alert('Esiste già una carta con questo codice!'); return; }
+
+  const set = code.includes('-') ? code.split('-')[0] : code;
+  const data = {
+    code,
+    set,
+    name:   document.getElementById('f-name').value.trim(),
+    rarity: document.getElementById('f-rarity').value,
+    status: document.getElementById('f-status').value,
+    price:  document.getElementById('f-price').value ? parseFloat(document.getElementById('f-price').value) : null,
+    url:    document.getElementById('f-url').value.trim() || null,
+  };
+
+  if (editingId) {
+    const idx = cards.findIndex(c => c.id === editingId);
+    cards[idx] = { ...cards[idx], ...data };
+    toast('Carta aggiornata', 'success');
+  } else {
+    data.id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    cards.push(data);
+    selectedId = data.id;
+    toast('Carta aggiunta', 'success');
+  }
+  saveCards();
+  closeModal();
+  renderGrid();
+  renderDetail();
+}
+
+// --- EXPORT / IMPORT ---
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(cards, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dbsfw_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  toast('Backup esportato', 'success');
+}
+function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) throw new Error('Formato non valido');
+      if (!confirm(`Importare ${data.length} carte? La collezione attuale verrà sovrascritta.`)) return;
+      cards = data;
+      saveCards();
+      selectedId = null;
+      renderGrid();
+      renderDetail();
+      toast('Importazione completata: ' + data.length + ' carte', 'success');
+    } catch(err) { toast('Errore nel file JSON', 'error'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// --- GIST SYNC ---
+const GIST_TOKEN_KEY = 'dbsfw_gist_token';
+const GIST_ID_KEY    = 'dbsfw_gist_id';
+const GIST_FILENAME  = 'dbsfw_collection.json';
+
+function openGistModal() {
+  document.getElementById('gist-token').value = localStorage.getItem(GIST_TOKEN_KEY) || '';
+  document.getElementById('gist-id').value    = localStorage.getItem(GIST_ID_KEY)    || '';
+  updateGistIdHint();
+  setGistStatus('', '');
+  document.getElementById('gist-modal-bg').classList.add('open');
+}
+function closeGistModal() {
+  document.getElementById('gist-modal-bg').classList.remove('open');
+}
+function closeGistModalOnBg(e) {
+  if (e.target === document.getElementById('gist-modal-bg')) closeGistModal();
+}
+function updateGistIdHint() {
+  const id = document.getElementById('gist-id').value.trim();
+  const hint = document.getElementById('gist-id-hint');
+  if (id) {
+    hint.innerHTML = `↗ <a href="https://gist.github.com/${id}" target="_blank" rel="noopener" style="color:var(--blue2)">Apri Gist</a>`;
+  } else {
+    hint.textContent = 'Verrà creato automaticamente al primo Push.';
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const gi = document.getElementById('gist-id');
+  if (gi) gi.addEventListener('input', updateGistIdHint);
+});
+
+function setGistStatus(msg, type) {
+  const el = document.getElementById('gist-status');
+  if (!msg) { el.style.display = 'none'; return; }
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = 'block';
+}
+function setGistBtnsLoading(loading) {
+  ['btn-pull','btn-push'].forEach(id => {
+    document.getElementById(id).disabled = loading;
+  });
+}
+
+function saveGistSettings() {
+  const token = document.getElementById('gist-token').value.trim();
+  const id    = document.getElementById('gist-id').value.trim();
+  if (token) localStorage.setItem(GIST_TOKEN_KEY, token);
+  if (id)    localStorage.setItem(GIST_ID_KEY,    id);
+  return { token, id };
+}
+
+async function gistPush() {
+  const { token, id } = saveGistSettings();
+  if (!token) { setGistStatus('Inserisci il token GitHub.', 'err'); return; }
+
+  setGistBtnsLoading(true);
+  setGistStatus('Salvataggio in corso…', 'info');
+
+  const payload = {
+    description: 'DBS Fusion World — Collezione',
+    public: false,
+    files: { [GIST_FILENAME]: { content: JSON.stringify(cards, null, 2) } }
+  };
+
+  try {
+    let res, data;
+    if (id) {
+      // Update existing gist
+      res  = await fetch(`https://api.github.com/gists/${id}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      // Create new gist
+      res  = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+    data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Errore API GitHub');
+
+    const newId = data.id;
+    localStorage.setItem(GIST_ID_KEY, newId);
+    document.getElementById('gist-id').value = newId;
+    updateGistIdHint();
+    setGistStatus(`✓ Salvato! ${cards.length} carte sul Gist (${newId.slice(0,8)}…)`, 'ok');
+    document.getElementById('gist-btn').classList.add('synced');
+    document.getElementById('gist-btn-label').textContent = '✓ Gist';
+    toast('Collezione salvata sul Gist', 'success');
+  } catch(err) {
+    setGistStatus('Errore: ' + err.message, 'err');
+    toast('Errore Gist push', 'error');
+  }
+  setGistBtnsLoading(false);
+}
+
+async function gistPull() {
+  const { token, id } = saveGistSettings();
+  if (!token) { setGistStatus('Inserisci il token GitHub.', 'err'); return; }
+  if (!id)    { setGistStatus('Inserisci il Gist ID per scaricare i dati.', 'err'); return; }
+
+  setGistBtnsLoading(true);
+  setGistStatus('Download in corso…', 'info');
+
+  try {
+    const res  = await fetch(`https://api.github.com/gists/${id}`, {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Errore API GitHub');
+
+    const file = data.files[GIST_FILENAME];
+    if (!file) throw new Error(`File "${GIST_FILENAME}" non trovato nel Gist.`);
+
+    // fetch raw content (may be truncated for large gists)
+    let content = file.content;
+    if (file.truncated) {
+      const raw = await fetch(file.raw_url);
+      content = await raw.text();
+    }
+
+    const parsed = JSON.parse(content);
+    if (!Array.isArray(parsed)) throw new Error('Formato non valido.');
+
+    if (!confirm(`Scaricare ${parsed.length} carte dal Gist? I dati locali verranno sovrascritti.`)) {
+      setGistStatus('', '');
+      setGistBtnsLoading(false);
+      return;
+    }
+
+    cards = parsed;
+    saveCards();
+    selectedId = null;
+    renderGrid();
+    renderDetail();
+    setGistStatus(`✓ Scaricate ${cards.length} carte dal Gist.`, 'ok');
+    document.getElementById('gist-btn').classList.add('synced');
+    document.getElementById('gist-btn-label').textContent = '✓ Gist';
+    toast('Collezione sincronizzata dal Gist', 'success');
+  } catch(err) {
+    setGistStatus('Errore: ' + err.message, 'err');
+    toast('Errore Gist pull', 'error');
+  }
+  setGistBtnsLoading(false);
+}
+
+// Show synced state if gist id already configured
+function initGistBtnState() {
+  const id = localStorage.getItem(GIST_ID_KEY);
+  if (id) {
+    document.getElementById('gist-btn').classList.add('synced');
+    document.getElementById('gist-btn-label').textContent = '✓ Gist';
+  }
+}
+
+// --- TOAST ---
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// --- ESC ---
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// --- PAGE SWITCH ---
+let currentPage = 'collection';
+function switchPage(page, btn) {
+  currentPage = page;
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const isStats = page === 'stats';
+  document.getElementById('stats-page').classList.toggle('visible', isStats);
+  document.querySelector('.toolbar').style.display = isStats ? 'none' : '';
+  document.querySelector('.main').style.display    = isStats ? 'none' : '';
+  if (isStats) renderStats();
+}
+
+// --- SORT ---
+let sortBy  = 'rarity';
+let sortDir = { code: 1, price: -1 };
+function setSort(by, btn) {
+  if (sortBy === by && by !== 'rarity') {
+    sortDir[by] *= -1;
+    document.getElementById('sort-'+by+'-arrow').textContent = sortDir[by] === 1 ? '↑' : '↓';
+  }
+  sortBy = by;
+  document.querySelectorAll('[data-sort]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+function sortCards(arr) {
+  if (sortBy === 'rarity') return arr; // rarity groups handle order
+  return [...arr].sort((a, b) => {
+    if (sortBy === 'code')  return a.code.localeCompare(b.code) * sortDir.code;
+    if (sortBy === 'price') {
+      const pa = parseFloat(a.price||0), pb = parseFloat(b.price||0);
+      return (pa - pb) * sortDir.price;
+    }
+    return 0;
+  });
+}
+
+// --- STATS ---
+const PALETTE = [
+  '#e8630a','#d4af37','#c084fc','#67e8f9','#00c97a',
+  '#ff4060','#4a9eff','#f97316','#a78bfa','#34d399',
+  '#fb923c','#60a5fa','#f472b6','#facc15','#2dd4bf'
+];
+
+// Chart state for left and right panels
+const chartOpts = {
+  left:  { mode: 'owned',   group: 'rarity', metric: 'value' },
+  right: { mode: 'missing', group: 'set',    metric: 'value' },
+};
+
+function setChartOpt(side, key, val, btn) {
+  chartOpts[side][key] = val;
+  // Update active pill in the right group
+  const groupId = side + '-' + key;
+  document.querySelectorAll('#' + groupId + ' .ctrl-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderStats();
+}
+
+function populateSetFilter(selectId, side) {
+  const sets = [...new Set(cards.map(c=>c.set).filter(Boolean))].sort();
+  const sel = document.getElementById(selectId);
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tutte le espansioni</option>' +
+    sets.map(s=>`<option value="${esc(s)}"${s===cur?' selected':''}>${esc(s)}</option>`).join('');
+}
+
+function renderStats() {
+  const owned   = cards.filter(c => c.status === 'have');
+  const missing = cards.filter(c => c.status === 'missing');
+  const totalVal = owned.reduce((s,c) => s + parseFloat(c.price||0), 0);
+  const missingVal = missing.reduce((s,c) => s + parseFloat(c.price||0), 0);
+  const totalCards = cards.length;
+
+  // KPIs
+  document.getElementById('kpi-row').innerHTML = [
+    { label:'Valore posseduto', value:'€'+totalVal.toFixed(2),    sub: owned.length+' carte', color:'' },
+    { label:'Costo stimato mancanti', value:'€'+missingVal.toFixed(2), sub: missing.length+' carte', color:'color:var(--red)' },
+    { label:'Carte totali',    value: totalCards,                  sub: '', color:'' },
+    { label:'✅ Possedute',     value: owned.length,               sub: totalCards ? Math.round(owned.length/totalCards*100)+'%' : '', color:'color:var(--green)' },
+    { label:'❌ Mancanti',      value: missing.length,             sub: totalCards ? Math.round(missing.length/totalCards*100)+'%' : '', color:'color:var(--text3)' },
+  ].map(k => `<div class="kpi-card">
+    <div class="kpi-label">${k.label}</div>
+    <div class="kpi-value" style="${k.color}">${k.value}</div>
+    ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ''}
+  </div>`).join('');
+
+  // Populate set filters and show/hide based on group='rarity' + we want per-set drill-down
+  populateSetFilter('left-filter-set', 'left');
+  populateSetFilter('right-filter-set', 'right');
+
+  renderChart('left');
+  renderChart('right');
+}
+
+function renderChart(side) {
+  const opts = chartOpts[side];
+  const filterWrap = document.getElementById(side+'-filter-wrap');
+  const filterSet  = document.getElementById(side+'-filter-set');
+
+  // Show set filter only when grouping by rarity (allows drill-down into one expansion)
+  const showFilter = opts.group === 'rarity';
+  filterWrap.style.display = showFilter ? '' : 'none';
+
+  const setFilter = showFilter ? filterSet.value : '';
+
+  // Select base pool
+  let pool = cards.filter(c => c.status === (opts.mode === 'owned' ? 'have' : 'missing'));
+  if (setFilter) pool = pool.filter(c => c.set === setFilter);
+
+  // Group
+  const grouped = {};
+  pool.forEach(c => {
+    const k = opts.group === 'rarity' ? (c.rarity || 'Nessuna') : (c.set || 'Sconosciuto');
+    if (!grouped[k]) grouped[k] = { value: 0, count: 0 };
+    grouped[k].value += parseFloat(c.price||0);
+    grouped[k].count += 1;
+  });
+
+  const isValue = opts.metric === 'value';
+  const dataObj = {};
+  Object.entries(grouped).forEach(([k, v]) => { dataObj[k] = isValue ? v.value : v.count; });
+
+  const total = Object.values(dataObj).reduce((a,b)=>a+b, 0);
+
+  // Build subtitle
+  const modeLabel   = opts.mode === 'owned' ? '✅ Possedute' : '❌ Mancanti';
+  const groupLabel  = opts.group === 'rarity' ? 'rarità' : 'espansione';
+  const metricLabel = isValue ? 'valore €' : 'quantità';
+  const filterLabel = setFilter ? ` · solo ${setFilter}` : '';
+  document.getElementById('subtitle-'+side).textContent =
+    `${modeLabel} · per ${groupLabel} · ${metricLabel}${filterLabel}`;
+
+  drawPie('chart-'+side, 'legend-'+side, dataObj, total, isValue);
+}
+
+const pieSlicesMap = {}; // canvasId -> { slices, total, isValue, r, ri, cx, cy }
+
+function drawPie(canvasId, legendId, dataObj, total, isValue) {
+  const canvas = document.getElementById(canvasId);
+  const legend = document.getElementById(legendId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const entries = Object.entries(dataObj).sort((a,b) => b[1]-a[1]);
+  if (!entries.length || total === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.beginPath(); ctx.arc(W/2, H/2, W/2-4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#5a5a80'; ctx.font = '13px Segoe UI,system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Nessun dato', W/2, H/2);
+    legend.innerHTML = '<div class="chart-empty" style="color:var(--text3);font-size:13px;padding:16px 0">Nessun dato disponibile</div>';
+    pieSlicesMap[canvasId] = null;
+    return;
+  }
+
+  const cx = W/2, cy = H/2, r = W/2 - 6, ri = r * 0.52;
+  let angle = -Math.PI/2;
+  const slices = [];
+
+  entries.forEach(([ label, val ], i) => {
+    const sweep = (val / total) * Math.PI * 2;
+    slices.push({ label, val, sweep, color: PALETTE[i % PALETTE.length], start: angle });
+    angle += sweep;
+  });
+
+  slices.forEach(s => {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, s.start, s.start + s.sweep);
+    ctx.closePath();
+    ctx.fillStyle = s.color;
+    ctx.fill();
+    ctx.strokeStyle = '#0a0a12';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  ctx.beginPath(); ctx.arc(cx, cy, ri, 0, Math.PI*2);
+  ctx.fillStyle = '#12121e'; ctx.fill();
+
+  const centerTxt = isValue ? '€'+total.toFixed(0) : total+' carte';
+  ctx.fillStyle = '#f0f0f8'; ctx.font = 'bold 14px Segoe UI,system-ui,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(centerTxt, cx, cy);
+
+  legend.innerHTML = slices.map(s => {
+    const pct = Math.round(s.val/total*100);
+    const valStr = isValue ? '€'+s.val.toFixed(2) : s.val+' carte';
+    return `<div class="legend-row">
+      <div class="legend-dot" style="background:${s.color}"></div>
+      <span class="legend-label">${esc(s.label)}</span>
+      <span class="legend-val">${valStr}</span>
+      <span class="legend-pct">${pct}%</span>
+    </div>`;
+  }).join('');
+
+  // Store for tooltip
+  pieSlicesMap[canvasId] = { slices, total, isValue, r, ri, cx, cy };
+
+  // Attach mousemove once per canvas (remove old listener first via clone)
+  const newCanvas = canvas.cloneNode(true);
+  canvas.parentNode.replaceChild(newCanvas, canvas);
+  // Re-draw on new canvas
+  const ctx2 = newCanvas.getContext('2d');
+  ctx2.drawImage(canvas, 0, 0);
+
+  // Actually just re-draw everything on the new canvas
+  ctx2.clearRect(0, 0, W, H);
+  slices.forEach(s => {
+    ctx2.beginPath(); ctx2.moveTo(cx, cy);
+    ctx2.arc(cx, cy, r, s.start, s.start + s.sweep);
+    ctx2.closePath();
+    ctx2.fillStyle = s.color; ctx2.fill();
+    ctx2.strokeStyle = '#0a0a12'; ctx2.lineWidth = 2; ctx2.stroke();
+  });
+  ctx2.beginPath(); ctx2.arc(cx, cy, ri, 0, Math.PI*2);
+  ctx2.fillStyle = '#12121e'; ctx2.fill();
+  ctx2.fillStyle = '#f0f0f8'; ctx2.font = 'bold 14px Segoe UI,system-ui,sans-serif';
+  ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle';
+  ctx2.fillText(centerTxt, cx, cy);
+
+  const tt = document.getElementById('pie-tooltip');
+
+  newCanvas.addEventListener('mousemove', function(e) {
+    const data = pieSlicesMap[canvasId];
+    if (!data) return;
+    const rect = newCanvas.getBoundingClientRect();
+    // Canvas is CSS-scaled: find scale factor
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top)  * scaleY;
+    const dx = mx - data.cx, dy = my - data.cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < data.ri || dist > data.r) {
+      tt.style.display = 'none'; return;
+    }
+
+    let a = Math.atan2(dy, dx);
+    // Normalize to start from -PI/2
+    const startAngle = -Math.PI / 2;
+    let norm = a - startAngle;
+    if (norm < 0) norm += Math.PI * 2;
+
+    const hit = data.slices.find(s => {
+      let start = s.start - startAngle;
+      if (start < 0) start += Math.PI * 2;
+      return norm >= start && norm < start + s.sweep;
+    });
+
+    if (!hit) { tt.style.display = 'none'; return; }
+
+    const pct = Math.round(hit.val / data.total * 100);
+    const valStr = data.isValue ? '€' + hit.val.toFixed(2) : hit.val + ' carte';
+    document.getElementById('tt-label').textContent = hit.label;
+    document.getElementById('tt-val').textContent = valStr;
+    document.getElementById('tt-pct').textContent = pct + '% del totale';
+    document.getElementById('tt-label').style.color = hit.color;
+
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top  = (e.clientY - 10) + 'px';
+  });
+
+  newCanvas.addEventListener('mouseleave', function() {
+    document.getElementById('pie-tooltip').style.display = 'none';
+  });
+}
+
+// --- INIT ---
+loadCards();
+document.getElementById('img-folder').value = getImgFolder();
+renderGrid();
+renderDetail();
+initGistBtnState();
+</script>
+</body>
+</html>
