@@ -1222,8 +1222,10 @@ function openMobileDetail() {
 }
 
 function closeMobileDetail(e) {
-  if (!e || e.target === document.getElementById('mobile-detail-modal')) {
-    document.getElementById('mobile-detail-modal').classList.remove('open');
+  const modal = document.getElementById('mobile-detail-modal');
+  if (!modal) return;
+  if (!e || e.target === modal) {
+    modal.classList.remove('open');
     document.body.style.overflow = '';
     const inner = document.getElementById('mobile-detail-inner');
     if (inner) inner.innerHTML = '<div class="mobile-detail-handle"></div>';
