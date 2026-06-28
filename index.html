@@ -1934,10 +1934,48 @@ function drawPie(canvasId, legendId, dataObj, total, isValue) {
 
 // --- INIT ---
 loadCards();
-document.getElementById('img-folder').value = getImgFolder();
 renderGrid();
 renderDetail();
 initGistBtnState();
+
+// Auto-pull dal Gist se token e ID sono già salvati
+(async function autoSync() {
+  const token = localStorage.getItem(GIST_TOKEN_KEY);
+  const id    = localStorage.getItem(GIST_ID_KEY);
+  if (!token || !id) return;
+
+  const lbl = document.getElementById('gist-btn-label');
+  if (lbl) lbl.textContent = '⟳ Sincronizzazione…';
+
+  try {
+    const res  = await fetch('https://api.github.com/gists/' + id, {
+      headers: { 'Authorization': 'token ' + token }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const file = data.files[GIST_FILENAME];
+    if (!file) throw new Error('File non trovato nel Gist');
+
+    let content = file.content;
+    if (file.truncated) {
+      const raw = await fetch(file.raw_url);
+      content = await raw.text();
+    }
+
+    const parsed = JSON.parse(content);
+    if (!Array.isArray(parsed)) throw new Error('Formato non valido');
+
+    cards = parsed;
+    saveCards();
+    renderGrid();
+    renderDetail();
+    if (lbl) lbl.textContent = '✓ Gist Sync';
+    toast('Collezione aggiornata dal Gist', 'success');
+  } catch(err) {
+    if (lbl) lbl.textContent = '✓ Gist Sync';
+    console.warn('Auto-sync Gist:', err.message);
+  }
+})();
 </script>
 </body>
 </html>
