@@ -753,6 +753,104 @@
     .header-stats { display: none; }
   }
 
+
+  /* VIEW TOGGLE */
+  .view-toggle-group { display: flex; gap: 2px; }
+  .view-btn {
+    padding: 6px 9px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center;
+  }
+  .view-btn:hover { background: var(--surface3); color: var(--text); }
+  .view-btn.active { background: var(--surface3); border-color: var(--border2); color: var(--text); }
+
+  /* TABLE VIEW */
+  .cards-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .cards-table thead th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text3);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .cards-table thead th:hover { color: var(--text); }
+  .cards-table thead th .th-arrow { font-size: 10px; margin-left: 4px; opacity: 0.5; }
+  .cards-table thead th.sorted .th-arrow { opacity: 1; color: var(--accent); }
+  .cards-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .cards-table tbody tr:hover { background: var(--surface2); }
+  .cards-table tbody tr.selected { background: rgba(232,99,10,0.08); }
+  .cards-table td { padding: 8px 12px; vertical-align: middle; }
+  .cards-table td:first-child { width: 44px; padding: 4px 8px; }
+  .table-thumb {
+    width: 36px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+    display: block;
+  }
+  .table-thumb-placeholder {
+    width: 36px;
+    height: 50px;
+    background: var(--surface2);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    font-size: 9px;
+  }
+  .table-code { font-size: 11px; font-weight: 700; color: var(--text2); letter-spacing: 0.5px; }
+  .table-name { font-size: 13px; font-weight: 500; }
+  .table-set  { font-size: 11px; color: var(--text3); }
+  .table-status { font-size: 16px; text-align: center; }
+  .table-price { font-weight: 600; color: var(--accent2); white-space: nowrap; }
+  .table-rarity-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .table-rarity-badge.scr { background: rgba(212,175,55,0.15); color: var(--scr2); border: 1px solid rgba(212,175,55,0.4); }
+  .table-rarity-badge.lr  { background: rgba(192,132,252,0.15); color: var(--lr2); border: 1px solid rgba(192,132,252,0.4); }
+  .table-rarity-badge.sr  { background: rgba(103,232,249,0.12); color: var(--sr2); border: 1px solid rgba(103,232,249,0.35); }
+  .table-rarity-badge.none { color: var(--text3); }
+
+  /* Missing row = desaturated */
+  .cards-table tbody tr.missing td { opacity: 0.5; filter: grayscale(0.6); }
+  .cards-table tbody tr.missing td:nth-child(4) { opacity: 1; filter: none; } /* keep status emoji readable */
+
+  @media (max-width: 768px) {
+    .cards-table thead th:nth-child(1),
+    .cards-table td:nth-child(1) { display: none; } /* hide thumb col on mobile */
+    .cards-table { font-size: 12px; }
+    .cards-table td { padding: 6px 8px; }
+  }
+
 </style>
 </head>
 <body>
@@ -843,6 +941,16 @@
     <button class="sort-btn active" data-sort="rarity" onclick="setSort('rarity',this)">Rarità</button>
     <button class="sort-btn" data-sort="code" onclick="setSort('code',this)">Codice <span class="sort-arrow" id="sort-code-arrow">↑</span></button>
     <button class="sort-btn" data-sort="price" onclick="setSort('price',this)">Prezzo <span class="sort-arrow" id="sort-price-arrow">↓</span></button>
+  </div>
+
+  <div class="separator"></div>
+  <div class="view-toggle-group">
+    <button class="view-btn active" id="view-btn-grid" onclick="setView('grid',this)" title="Vista griglia">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    </button>
+    <button class="view-btn" id="view-btn-table" onclick="setView('table',this)" title="Vista tabella">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+    </button>
   </div>
 
 </div>
@@ -1156,6 +1264,12 @@ function renderGrid() {
     return;
   }
   empty.style.display = 'none';
+
+  // TABLE MODE
+  if (viewMode === 'table') {
+    renderTable(filtered);
+    return;
+  }
 
   if (sortBy !== 'rarity') {
     // Flat sorted grid
@@ -1658,6 +1772,85 @@ function switchPage(page, btn) {
   document.querySelector('.toolbar').style.display = isStats ? 'none' : '';
   document.querySelector('.main').style.display    = isStats ? 'none' : '';
   if (isStats) renderStats();
+}
+
+// --- VIEW MODE ---
+let viewMode = 'grid'; // 'grid' | 'table'
+let tableSortCol = 'code';
+let tableSortDir = 1;
+
+function setView(mode, btn) {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+
+function tableSort(col) {
+  if (tableSortCol === col) tableSortDir *= -1;
+  else { tableSortCol = col; tableSortDir = 1; }
+  renderGrid();
+}
+
+function cardThumbTableHTML(srcs, code) {
+  if (!srcs) return `<div class="table-thumb-placeholder">?</div>`;
+  return `<img class="table-thumb" src="${srcs[0]}" alt="${esc(code)}"
+    onerror="var s=${JSON.stringify(srcs)};var i=s.indexOf(this.src)+1;if(i<s.length){this.src=s[i];}else{this.outerHTML='<div class=\"table-thumb-placeholder\">?</div>';}">`;
+}
+
+function renderTable(filtered) {
+  const container = document.getElementById('groups-container');
+
+  // Sort
+  const sorted = [...filtered].sort((a, b) => {
+    let va, vb;
+    if (tableSortCol === 'code')   { va = a.code;              vb = b.code; }
+    if (tableSortCol === 'name')   { va = a.name||'';          vb = b.name||''; }
+    if (tableSortCol === 'set')    { va = a.set||'';           vb = b.set||''; }
+    if (tableSortCol === 'rarity') { va = RARITY_ORDER[a.rarity]??99; vb = RARITY_ORDER[b.rarity]??99; return (va-vb)*tableSortDir; }
+    if (tableSortCol === 'status') { va = a.status;            vb = b.status; }
+    if (tableSortCol === 'price')  { va = parseFloat(a.price||0); vb = parseFloat(b.price||0); return (va-vb)*tableSortDir; }
+    return String(va).localeCompare(String(vb)) * tableSortDir;
+  });
+
+  const arrow = (col) => {
+    if (tableSortCol !== col) return '<span class="th-arrow">↕</span>';
+    return `<span class="th-arrow">${tableSortDir === 1 ? '↑' : '↓'}</span>`;
+  };
+  const thCls = (col) => tableSortCol === col ? ' class="sorted"' : '';
+
+  container.innerHTML = `
+    <table class="cards-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th${thCls('code')}    onclick="tableSort('code')"  >Codice ${arrow('code')}</th>
+          <th${thCls('name')}    onclick="tableSort('name')"  >Nome ${arrow('name')}</th>
+          <th${thCls('set')}     onclick="tableSort('set')"   >Set ${arrow('set')}</th>
+          <th${thCls('rarity')}  onclick="tableSort('rarity')">Rarità ${arrow('rarity')}</th>
+          <th${thCls('status')}  onclick="tableSort('status')">Stato ${arrow('status')}</th>
+          <th${thCls('price')}   onclick="tableSort('price')" >Prezzo ${arrow('price')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.map(card => {
+          const srcs    = getImgSrc(card.code);
+          const rKey    = RARITY_KEY[card.rarity] || 'none';
+          const misCls  = card.status === 'missing' ? ' missing' : '';
+          const selCls  = card.id === selectedId ? ' selected' : '';
+          const rarLabel = card.rarity || '—';
+          return `<tr class="${misCls}${selCls}" onclick="selectCard('${card.id}')">
+            <td>${cardThumbTableHTML(srcs, card.code)}</td>
+            <td><div class="table-code">${esc(card.code)}</div></td>
+            <td><div class="table-name">${esc(card.name||'—')}</div></td>
+            <td><div class="table-set">${esc(card.set||'—')}</div></td>
+            <td><span class="table-rarity-badge ${rKey}">${esc(rarLabel)}</span></td>
+            <td class="table-status">${card.status === 'have' ? '✅' : '❌'}</td>
+            <td class="table-price">${card.price ? '€'+parseFloat(card.price).toFixed(2) : '—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
 }
 
 // --- SORT ---
