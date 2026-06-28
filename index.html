@@ -846,6 +846,11 @@
     min-width: 480px; /* forces scroll before columns collapse */
   }
 
+
+  @media (max-width: 768px) {
+    .table-scroll-wrap .cards-table { min-width: unset; width: 100%; }
+  }
+
 </style>
 </head>
 <body>
@@ -1826,33 +1831,69 @@ function renderTable(filtered) {
   };
   const thCls = (col) => tableSortCol === col ? ' class="sorted"' : '';
 
+  const isMobile = window.innerWidth <= 768;
+  const rarityColor = { 'SCR★': 'var(--scr2)', 'L★': 'var(--lr2)', 'SR★': 'var(--sr2)' };
+
+  // Desktop columns: status | code | name | set | rarity | price | mercato
+  // Mobile columns:  status | code (colored) | name | price
+  const thead = isMobile ? `
+    <tr>
+      <th style="width:24px;padding:6px 4px;"></th>
+      <th${thCls('code')} onclick="tableSort('code')">Codice ${arrow('code')}</th>
+      <th${thCls('name')} onclick="tableSort('name')">Nome ${arrow('name')}</th>
+      <th${thCls('price')} onclick="tableSort('price')" style="text-align:right">€ ${arrow('price')}</th>
+    </tr>` : `
+    <tr>
+      <th style="width:28px;padding:8px 6px;"></th>
+      <th${thCls('code')}   onclick="tableSort('code')"  >Codice ${arrow('code')}</th>
+      <th${thCls('name')}   onclick="tableSort('name')"  >Nome ${arrow('name')}</th>
+      <th${thCls('set')}    onclick="tableSort('set')"   >Set ${arrow('set')}</th>
+      <th${thCls('rarity')} onclick="tableSort('rarity')">Rarità ${arrow('rarity')}</th>
+      <th${thCls('price')}  onclick="tableSort('price')" >Prezzo ${arrow('price')}</th>
+      <th style="width:32px;"></th>
+    </tr>`;
+
+  const rows = sorted.map(card => {
+    const rKey     = RARITY_KEY[card.rarity] || 'none';
+    const misCls   = card.status === 'missing' ? ' missing' : '';
+    const selCls   = card.id === selectedId ? ' selected' : '';
+    const rarLabel = card.rarity || '—';
+    const codeColor = rarityColor[card.rarity] || 'var(--text2)';
+    const priceStr  = card.price ? '€'+parseFloat(card.price).toFixed(2) : '—';
+
+    if (isMobile) {
+      return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
+        <td style="text-align:center;padding:5px 3px;font-size:14px;">${card.status === 'have' ? '✅' : '❌'}</td>
+        <td><div class="table-code" style="color:${codeColor}">${esc(card.code)}</div></td>
+        <td style="max-width:120px;overflow:hidden;"><div class="table-name" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(card.name||'—')}</div></td>
+        <td class="table-price" style="text-align:right;white-space:nowrap;">${priceStr}</td>
+      </tr>`;
+    } else {
+      const marketBtn = card.url
+        ? `<a href="${card.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+             style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;border:1px solid var(--blue2);color:var(--blue2);text-decoration:none;transition:background 0.15s;"
+             onmouseover="this.style.background='rgba(74,158,255,0.15)'" onmouseout="this.style.background=''"
+             title="Mercato">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+           </a>`
+        : '';
+      return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
+        <td style="text-align:center;padding:6px;font-size:15px;">${card.status === 'have' ? '✅' : '❌'}</td>
+        <td><div class="table-code">${esc(card.code)}</div></td>
+        <td><div class="table-name">${esc(card.name||'—')}</div></td>
+        <td><div style="font-size:11px;color:var(--text3)">${esc(card.set||'—')}</div></td>
+        <td><span class="table-rarity-badge ${rKey}">${esc(rarLabel)}</span></td>
+        <td class="table-price">${priceStr}</td>
+        <td style="padding:4px 6px;">${marketBtn}</td>
+      </tr>`;
+    }
+  }).join('');
+
   container.innerHTML = `
     <div class="table-scroll-wrap">
     <table class="cards-table">
-      <thead>
-        <tr>
-          <th style="width:28px;padding:8px 6px;"></th>
-          <th${thCls('code')}    onclick="tableSort('code')"  >Codice ${arrow('code')}</th>
-          <th${thCls('name')}    onclick="tableSort('name')"  >Nome ${arrow('name')}</th>
-          <th${thCls('rarity')}  onclick="tableSort('rarity')">Rarità ${arrow('rarity')}</th>
-          <th${thCls('price')}   onclick="tableSort('price')" >Prezzo ${arrow('price')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${sorted.map(card => {
-          const rKey    = RARITY_KEY[card.rarity] || 'none';
-          const misCls  = card.status === 'missing' ? ' missing' : '';
-          const selCls  = card.id === selectedId ? ' selected' : '';
-          const rarLabel = card.rarity || '—';
-          return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
-            <td style="text-align:center;padding:6px;font-size:15px;">${card.status === 'have' ? '✅' : '❌'}</td>
-            <td><div class="table-code">${esc(card.code)}</div></td>
-            <td><div class="table-name">${esc(card.name||'—')}</div></td>
-            <td><span class="table-rarity-badge ${rKey}">${esc(rarLabel)}</span></td>
-            <td class="table-price">${card.price ? '€'+parseFloat(card.price).toFixed(2) : '—'}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
+      <thead>${thead}</thead>
+      <tbody>${rows}</tbody>
     </table>
     </div>`;
 }
