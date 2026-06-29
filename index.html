@@ -751,6 +751,8 @@
     font-size: 13px;
     margin-left: auto;
     margin-right: 4px;
+    text-align: right;
+    line-height: 1.3;
   }
   @media (max-width: 768px) {
     .header-value-mobile { display: block; }
@@ -940,7 +942,7 @@
     <span>Valore: <strong id="stat-value" style="color:var(--accent2)">€0</strong></span>
     <span>Budget: <strong id="stat-budget" style="color:var(--green)">€0</strong></span>
   </div>
-  <span class="header-value-mobile"><strong id="stat-value-mobile" style="color:var(--accent2)">€0</strong> <span style="color:var(--text3);font-size:11px;margin:0 2px">·</span> <span style="font-size:11px;color:var(--text2)">B:</span><strong id="stat-budget-mobile" style="color:var(--green)">€0</strong></span>
+  <div class="header-value-mobile"><strong id="stat-value-mobile" style="color:var(--accent2);display:block;line-height:1.2">€0</strong><strong id="stat-budget-mobile" style="color:var(--green);display:block;line-height:1.2;font-size:11px">€0</strong></div>
   <button class="btn btn-primary" onclick="openModal()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     <span class="btn-label-add">Aggiungi</span>
@@ -1654,10 +1656,11 @@ function saveCard() {
 
 // --- EXPORT / IMPORT ---
 function exportJSON() {
-  const blob = new Blob([JSON.stringify(cards, null, 2)], {type:'application/json'});
+  const payload = { cards, budget: budgetEntries };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'dbsfw_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.download = 'trackalo_backup_' + new Date().toISOString().slice(0,10) + '.json';
   a.click();
   toast('Backup esportato', 'success');
 }
@@ -1668,14 +1671,24 @@ function importJSON(e) {
   reader.onload = function(ev) {
     try {
       const data = JSON.parse(ev.target.result);
-      if (!Array.isArray(data)) throw new Error('Formato non valido');
-      if (!confirm(`Importare ${data.length} carte? La collezione attuale verrà sovrascritta.`)) return;
-      cards = data;
+      // Support both old format (array of cards) and new format ({cards, budget})
+      const newCards  = Array.isArray(data) ? data : (data.cards || []);
+      const newBudget = Array.isArray(data) ? [] : (data.budget || []);
+      if (!Array.isArray(newCards)) throw new Error('Formato non valido');
+      const msg = newBudget.length
+        ? `Importare ${newCards.length} carte e ${newBudget.length} movimenti budget?`
+        : `Importare ${newCards.length} carte?`;
+      if (!confirm(msg + ' I dati attuali verranno sovrascritti.')) return;
+      cards = newCards;
+      budgetEntries = newBudget;
       saveCards();
+      saveBudget();
       selectedId = null;
       renderGrid();
       renderDetail();
-      toast('Importazione completata: ' + data.length + ' carte', 'success');
+      renderBudget();
+      updateBudgetStat();
+      toast('Importazione completata: ' + newCards.length + ' carte', 'success');
     } catch(err) { toast('Errore nel file JSON', 'error'); }
   };
   reader.readAsText(file);
@@ -1742,10 +1755,14 @@ async function gistPush() {
   setGistBtnsLoading(true);
   setGistStatus('Salvataggio in corso…', 'info');
 
+  const BUDGET_FILENAME = 'dbsfw_budget.json';
   const payload = {
-    description: 'DBS Fusion World — Collezione',
+    description: 'Trackalo — Collezione',
     public: false,
-    files: { [GIST_FILENAME]: { content: JSON.stringify(cards, null, 2) } }
+    files: {
+      [GIST_FILENAME]:  { content: JSON.stringify(cards, null, 2) },
+      [BUDGET_FILENAME]: { content: JSON.stringify(budgetEntries, null, 2) }
+    }
   };
 
   try {
@@ -1798,31 +1815,43 @@ async function gistPull() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Errore API GitHub');
 
+    const BUDGET_FILENAME = 'dbsfw_budget.json';
     const file = data.files[GIST_FILENAME];
     if (!file) throw new Error(`File "${GIST_FILENAME}" non trovato nel Gist.`);
 
-    // fetch raw content (may be truncated for large gists)
     let content = file.content;
-    if (file.truncated) {
-      const raw = await fetch(file.raw_url);
-      content = await raw.text();
-    }
-
+    if (file.truncated) { const raw = await fetch(file.raw_url); content = await raw.text(); }
     const parsed = JSON.parse(content);
     if (!Array.isArray(parsed)) throw new Error('Formato non valido.');
 
-    if (!confirm(`Scaricare ${parsed.length} carte dal Gist? I dati locali verranno sovrascritti.`)) {
+    // Pull budget if present
+    let pulledBudget = [];
+    const budgetFile = data.files[BUDGET_FILENAME];
+    if (budgetFile) {
+      let bc = budgetFile.content;
+      if (budgetFile.truncated) { const r = await fetch(budgetFile.raw_url); bc = await r.text(); }
+      try { pulledBudget = JSON.parse(bc); } catch {}
+    }
+
+    const msg = pulledBudget.length
+      ? `Scaricare ${parsed.length} carte e ${pulledBudget.length} movimenti budget dal Gist?`
+      : `Scaricare ${parsed.length} carte dal Gist?`;
+    if (!confirm(msg + ' I dati locali verranno sovrascritti.')) {
       setGistStatus('', '');
       setGistBtnsLoading(false);
       return;
     }
 
     cards = parsed;
+    budgetEntries = pulledBudget;
     saveCards();
+    saveBudget();
     selectedId = null;
     renderGrid();
     renderDetail();
-    setGistStatus(`✓ Scaricate ${cards.length} carte dal Gist.`, 'ok');
+    renderBudget();
+    updateBudgetStat();
+    setGistStatus(`✓ Scaricate ${cards.length} carte e ${budgetEntries.length} movimenti dal Gist.`, 'ok');
     const gb2 = document.getElementById('gist-menu-item'); if(gb2) gb2.style.color='var(--green)';
     document.getElementById('gist-btn-label').textContent = '✓ Gist Sync';
     toast('Collezione sincronizzata dal Gist', 'success');
@@ -2145,7 +2174,7 @@ function renderTable(filtered) {
       <th${thCls('set')}    onclick="tableSort('set')"   >Set ${arrow('set')}</th>
       <th${thCls('rarity')} onclick="tableSort('rarity')">Rarità ${arrow('rarity')}</th>
       <th${thCls('price')}  onclick="tableSort('price')" >Prezzo ${arrow('price')}</th>
-      <th style="width:32px;"></th>
+      <th style="width:90px;padding:8px 10px;">Mercato</th>
     </tr>`;
 
   const rows = sorted.map(card => {
@@ -2166,12 +2195,12 @@ function renderTable(filtered) {
     } else {
       const marketBtn = card.url
         ? `<a href="${card.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-             style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;border:1px solid var(--blue2);color:var(--blue2);text-decoration:none;transition:background 0.15s;"
-             onmouseover="this.style.background='rgba(74,158,255,0.15)'" onmouseout="this.style.background=''"
-             title="Mercato">
+             style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;border:1px solid var(--blue2);color:var(--blue2);text-decoration:none;font-size:12px;font-weight:600;transition:background 0.15s;white-space:nowrap;"
+             onmouseover="this.style.background='rgba(74,158,255,0.12)'" onmouseout="this.style.background=''">
              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+             Mercato
            </a>`
-        : '';
+        : '<span style="color:var(--text3);font-size:11px;">—</span>';
       return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
         <td style="text-align:center;padding:6px;font-size:15px;">${card.status === 'have' ? '✅' : '❌'}</td>
         <td><div class="table-code">${esc(card.code)}</div></td>
@@ -2494,6 +2523,18 @@ updateBudgetStat();
 
     cards = parsed;
     saveCards();
+    // Also try to pull budget
+    try {
+      const BUDGET_FILENAME = 'dbsfw_budget.json';
+      const bf = data.files[BUDGET_FILENAME];
+      if (bf) {
+        let bc = bf.content;
+        if (bf.truncated) { const r = await fetch(bf.raw_url); bc = await r.text(); }
+        budgetEntries = JSON.parse(bc);
+        saveBudget();
+        updateBudgetStat();
+      }
+    } catch {}
     renderGrid();
     renderDetail();
     if (lbl) lbl.textContent = '✓ Gist Sync';
