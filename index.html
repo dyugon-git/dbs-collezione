@@ -1009,6 +1009,7 @@
   <div class="separator"></div>
   <div class="sort-group">
     <span style="font-size:12px;color:var(--text3)">Ordina:</span>
+    <button class="sort-btn" data-sort="rarity" id="sort-btn-rarity" onclick="setSort('rarity',this)">Rarità <span class="sort-arrow" id="sort-rarity-arrow">↓</span></button>
     <button class="sort-btn active" data-sort="code" id="sort-btn-code" onclick="setSort('code',this)">Codice <span class="sort-arrow" id="sort-code-arrow">↑</span></button>
     <button class="sort-btn" data-sort="price" id="sort-btn-price" onclick="setSort('price',this)">Prezzo <span class="sort-arrow" id="sort-price-arrow">↓</span></button>
   </div>
@@ -2127,8 +2128,6 @@ function switchPage(page, btn) {
 
 // --- VIEW MODE ---
 let viewMode = 'grid'; // 'grid' | 'table'
-let tableSortCol = 'code';
-let tableSortDir = 1;
 
 function setView(mode, btn) {
   viewMode = mode;
@@ -2153,105 +2152,136 @@ function tableRowClick(id) {
   }
 }
 
-function tableSort(col) {
-  if (tableSortCol === col) tableSortDir *= -1;
-  else { tableSortCol = col; tableSortDir = 1; }
-  renderGrid();
-}
+
 
 
 
 function renderTable(filtered) {
   const container = document.getElementById('groups-container');
-
-  // Sort
-  const sorted = [...filtered].sort((a, b) => {
-    let va, vb;
-    if (tableSortCol === 'code')   { va = a.code;              vb = b.code; }
-    if (tableSortCol === 'name')   { va = a.name||'';          vb = b.name||''; }
-    if (tableSortCol === 'set')    { va = a.set||'';           vb = b.set||''; }
-    if (tableSortCol === 'rarity') { va = RARITY_ORDER[a.rarity]??99; vb = RARITY_ORDER[b.rarity]??99; return (va-vb)*tableSortDir; }
-    if (tableSortCol === 'status') { va = a.status;            vb = b.status; }
-    if (tableSortCol === 'price')  { va = parseFloat(a.price||0); vb = parseFloat(b.price||0); return (va-vb)*tableSortDir; }
-    return String(va).localeCompare(String(vb)) * tableSortDir;
-  });
-
-  const arrow = (col) => {
-    if (tableSortCol !== col) return '<span class="th-arrow">↕</span>';
-    return `<span class="th-arrow">${tableSortDir === 1 ? '↑' : '↓'}</span>`;
-  };
-  const thCls = (col) => tableSortCol === col ? ' class="sorted"' : '';
-
-  const isMobile = window.innerWidth <= 768;
+  const isMobile  = window.innerWidth <= 768;
   const rarityColor = { 'SCR★': 'var(--scr2)', 'L★': 'var(--lr2)', 'SR★': 'var(--sr2)' };
 
-  // Desktop columns: status | code | name | set | rarity | price | mercato
-  // Mobile columns:  status | code (colored) | name | price
+  // Build thead arrow helper using global sortBy/sortDir
+  const arrow = (col) => {
+    if (sortBy !== col) return '<span class="th-arrow">↕</span>';
+    return `<span class="th-arrow">${sortDir[col] === 1 ? '↑' : '↓'}</span>`;
+  };
+  const thCls = (col) => sortBy === col ? ' class="sorted"' : '';
+
+  // Apply groupBy
+  let groups;
+  let groupKeys;
+  if (groupBy === 'set') {
+    groups = {};
+    filtered.forEach(card => {
+      const k = card.set || 'Sconosciuto';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(card);
+    });
+    groupKeys = Object.keys(groups).sort((a,b) => a.localeCompare(b));
+  } else {
+    // group by rarity
+    groups = {};
+    filtered.forEach(card => {
+      const k = card.rarity || '';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(card);
+    });
+    groupKeys = Object.keys(groups).sort((a,b) => (RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99));
+  }
+
+  // Build thead
   const thead = isMobile ? `
     <tr>
       <th style="width:24px;padding:6px 4px;"></th>
-      <th${thCls('code')} onclick="tableSort('code')">Codice ${arrow('code')}</th>
-      <th${thCls('name')} onclick="tableSort('name')">Nome ${arrow('name')}</th>
-      <th${thCls('price')} onclick="tableSort('price')" style="text-align:right">€ ${arrow('price')}</th>
+      <th${thCls('code')}  onclick="setSort('code',this)" >Codice ${arrow('code')}</th>
+      <th${thCls('name')}  onclick="setSort('name',this)" >Nome</th>
+      <th${thCls('price')} onclick="setSort('price',this)" style="text-align:right">€ ${arrow('price')}</th>
     </tr>` : `
     <tr>
       <th style="width:28px;padding:8px 6px;"></th>
-      <th${thCls('code')}   onclick="tableSort('code')"  >Codice ${arrow('code')}</th>
-      <th${thCls('name')}   onclick="tableSort('name')"  >Nome ${arrow('name')}</th>
-      <th${thCls('set')}    onclick="tableSort('set')"   >Set ${arrow('set')}</th>
-      <th${thCls('rarity')} onclick="tableSort('rarity')">Rarità ${arrow('rarity')}</th>
-      <th${thCls('price')}  onclick="tableSort('price')" >Prezzo ${arrow('price')}</th>
+      <th${thCls('code')}   onclick="setSort('code',this)"  >Codice ${arrow('code')}</th>
+      <th${thCls('name')}   onclick="setSort('name',this)"  >Nome</th>
+      <th${thCls('set')}    onclick="setSort('set',this)"   >Set</th>
+      <th${thCls('rarity')} onclick="setSort('rarity',this)">Rarità ${arrow('rarity')}</th>
+      <th${thCls('price')}  onclick="setSort('price',this)" >Prezzo ${arrow('price')}</th>
       <th style="width:90px;padding:8px 10px;">Mercato</th>
     </tr>`;
 
-  const rows = sorted.map(card => {
-    const rKey     = RARITY_KEY[card.rarity] || 'none';
-    const misCls   = card.status === 'missing' ? ' missing' : '';
-    const selCls   = card.id === selectedId ? ' selected' : '';
-    const rarLabel = card.rarity || '—';
-    const codeColor = rarityColor[card.rarity] || 'var(--text2)';
-    const priceStr  = card.price ? '€'+parseFloat(card.price).toFixed(2) : '—';
+  // Build rows function
+  function buildRows(cardList) {
+    const sorted = sortCards(cardList);
+    return sorted.map(card => {
+      const rKey     = RARITY_KEY[card.rarity] || 'none';
+      const misCls   = card.status === 'missing' ? ' missing' : '';
+      const selCls   = card.id === selectedId ? ' selected' : '';
+      const rarLabel = card.rarity || '—';
+      const priceStr = card.price ? '€'+parseFloat(card.price).toFixed(2) : '—';
 
-    if (isMobile) {
-      return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
-        <td style="text-align:center;padding:5px 3px;font-size:14px;">${card.status === 'have' ? '✅' : '❌'}</td>
-        <td><span class="table-rarity-badge ${rKey}" style="font-size:10px;letter-spacing:0.3px">${esc(card.code)}</span></td>
-        <td style="max-width:120px;overflow:hidden;"><div class="table-name" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(card.name||'—')}</div></td>
-        <td class="table-price" style="text-align:right;white-space:nowrap;">${priceStr}</td>
-      </tr>`;
-    } else {
-      const marketBtn = card.url
-        ? `<a href="${card.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-             style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;border:1px solid var(--blue2);color:var(--blue2);text-decoration:none;font-size:12px;font-weight:600;transition:background 0.15s;white-space:nowrap;"
-             onmouseover="this.style.background='rgba(74,158,255,0.12)'" onmouseout="this.style.background=''">
-             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-             Mercato
-           </a>`
-        : '<span style="color:var(--text3);font-size:11px;">—</span>';
-      return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
-        <td style="text-align:center;padding:6px;font-size:15px;">${card.status === 'have' ? '✅' : '❌'}</td>
-        <td><div class="table-code">${esc(card.code)}</div></td>
-        <td><div class="table-name">${esc(card.name||'—')}</div></td>
-        <td><div style="font-size:11px;color:var(--text3)">${esc(card.set||'—')}</div></td>
-        <td><span class="table-rarity-badge ${rKey}">${esc(rarLabel)}</span></td>
-        <td class="table-price">${priceStr}</td>
-        <td style="padding:4px 6px;">${marketBtn}</td>
-      </tr>`;
-    }
+      if (isMobile) {
+        return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
+          <td style="text-align:center;padding:5px 3px;font-size:14px;">${card.status === 'have' ? '✅' : '❌'}</td>
+          <td><span class="table-rarity-badge ${rKey}" style="font-size:10px;letter-spacing:0.3px">${esc(card.code)}</span></td>
+          <td style="max-width:120px;overflow:hidden;"><div class="table-name" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(card.name||'—')}</div></td>
+          <td class="table-price" style="text-align:right;white-space:nowrap;">${priceStr}</td>
+        </tr>`;
+      } else {
+        const marketBtn = card.url
+          ? `<a href="${card.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+               style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;border:1px solid var(--blue2);color:var(--blue2);text-decoration:none;font-size:12px;font-weight:600;transition:background 0.15s;white-space:nowrap;"
+               onmouseover="this.style.background='rgba(74,158,255,0.12)'" onmouseout="this.style.background=''">
+               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+               Mercato
+             </a>`
+          : '<span style="color:var(--text3);font-size:11px;">—</span>';
+        return `<tr class="${misCls}${selCls}" onclick="tableRowClick('${card.id}')">
+          <td style="text-align:center;padding:6px;font-size:15px;">${card.status === 'have' ? '✅' : '❌'}</td>
+          <td><div class="table-code">${esc(card.code)}</div></td>
+          <td><div class="table-name">${esc(card.name||'—')}</div></td>
+          <td><div style="font-size:11px;color:var(--text3)">${esc(card.set||'—')}</div></td>
+          <td><span class="table-rarity-badge ${rKey}">${esc(rarLabel)}</span></td>
+          <td class="table-price">${priceStr}</td>
+          <td style="padding:4px 6px;">${marketBtn}</td>
+        </tr>`;
+      }
+    }).join('');
+  }
+
+  // Render: one table per group, with group headers
+  const showHeaders = groupKeys.length > 1 || (groupBy === 'rarity' && activeRarity === '');
+  const html = groupKeys.map(key => {
+    const grpCards = groups[key];
+    const haveCount = grpCards.filter(c=>c.status==='have').length;
+    const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+    const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
+    const rKey = RARITY_KEY[key] || 'none';
+    const labelCls = groupBy === 'rarity' ? rKey : 'none';
+    const label = key || 'Rarità non specificata';
+
+    const header = showHeaders ? `
+      <div class="rarity-header" style="margin-bottom:8px">
+        <span class="rarity-label ${labelCls}">${esc(label)}</span>
+        <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}</span>
+        <div class="rarity-divider"></div>
+      </div>` : '';
+
+    return `<div class="rarity-group">
+      ${header}
+      <div class="table-scroll-wrap">
+      <table class="cards-table">
+        <thead>${thead}</thead>
+        <tbody>${buildRows(grpCards)}</tbody>
+      </table>
+      </div>
+    </div>`;
   }).join('');
 
-  container.innerHTML = `
-    <div class="table-scroll-wrap">
-    <table class="cards-table">
-      <thead>${thead}</thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </div>`;
+  container.innerHTML = html || '<div class="empty-state"><p>Nessuna carta trovata</p></div>';
 }
 
 // --- SORT ---
 let sortBy  = 'code';
-let sortDir = { code: 1, price: -1 };
+let sortDir = { code: 1, price: -1, rarity: -1, name: 1, set: 1 }; // rarity: -1=SCR→SR (desc), 1=SR→SCR (asc)
 let groupBy = 'rarity'; // 'rarity' | 'set'
 function setGroupBy(by, btn) {
   groupBy = by;
@@ -2261,9 +2291,13 @@ function setGroupBy(by, btn) {
 }
 
 function setSort(by, btn) {
-  if (sortBy === by && by !== 'rarity') {
+  if (sortBy === by) {
     sortDir[by] *= -1;
-    document.getElementById('sort-'+by+'-arrow').textContent = sortDir[by] === 1 ? '↑' : '↓';
+    // rarity: ↑ = SR→L→SCR (ascending index = lower rarity first), ↓ = SCR→L→SR
+    const rarityUpLabel  = '↑'; // SR→L→SCR (up = common first)
+    const rarityDnLabel  = '↓'; // SCR→L→SR (down = rarest first)
+    const arrowEl = document.getElementById('sort-'+by+'-arrow');
+    if (arrowEl) arrowEl.textContent = sortDir[by] === 1 ? '↑' : '↓';
   }
   sortBy = by;
   document.querySelectorAll('[data-sort]').forEach(b => b.classList.remove('active'));
@@ -2272,10 +2306,19 @@ function setSort(by, btn) {
 }
 function sortCards(arr) {
   return [...arr].sort((a, b) => {
-    if (sortBy === 'code')  return a.code.localeCompare(b.code) * sortDir.code;
+    if (sortBy === 'code')   return a.code.localeCompare(b.code) * sortDir.code;
+    if (sortBy === 'name')   return (a.name||'').localeCompare(b.name||'') * sortDir.name;
+    if (sortBy === 'set')    return (a.set||'').localeCompare(b.set||'') * sortDir.set;
     if (sortBy === 'price') {
       const pa = parseFloat(a.price||0), pb = parseFloat(b.price||0);
       return (pa - pb) * sortDir.price;
+    }
+    if (sortBy === 'rarity') {
+      // sortDir.rarity: -1 = SCR(0)→L(1)→SR(2) desc = SCR first
+      //                  1 = SR(2)→L(1)→SCR(0) asc = SR first
+      const ra = RARITY_ORDER[a.rarity]??99;
+      const rb = RARITY_ORDER[b.rarity]??99;
+      return (ra - rb) * sortDir.rarity;
     }
     return 0;
   });
