@@ -1000,20 +1000,25 @@
     <button class="filter-pill"        data-filter="missing" onclick="setFilter('missing',this)">❌ <span class="count-badge" id="cnt-missing">0</span></button>
   </div>
   <div class="separator"></div>
-  <div class="filter-group">
-    <button class="filter-pill rarity-pill"         data-rarity="" onclick="setRarity('',this)">Tutte</button>
-    <button class="filter-pill rarity-pill rarity-scr" data-rarity="SCR★" onclick="setRarity('SCR★',this)">SCR★</button>
-    <button class="filter-pill rarity-pill rarity-lr"  data-rarity="L★"   onclick="setRarity('L★',this)">L★</button>
-    <button class="filter-pill rarity-pill rarity-sr"  data-rarity="SR★"  onclick="setRarity('SR★',this)">SR★</button>
-  </div>
+  <select id="filter-rarity" onchange="setRaritySelect(this.value)" style="font-size:12px;padding:6px 10px;">
+    <option value="">Tutte le rarità</option>
+    <option value="SCR★">SCR★</option>
+    <option value="L★">L★</option>
+    <option value="SR★">SR★</option>
+  </select>
   <div class="separator"></div>
   <div class="sort-group">
     <span style="font-size:12px;color:var(--text3)">Ordina:</span>
-    <button class="sort-btn active" data-sort="rarity" onclick="setSort('rarity',this)">Rarità</button>
-    <button class="sort-btn" data-sort="code" onclick="setSort('code',this)">Codice <span class="sort-arrow" id="sort-code-arrow">↑</span></button>
-    <button class="sort-btn" data-sort="price" onclick="setSort('price',this)">Prezzo <span class="sort-arrow" id="sort-price-arrow">↓</span></button>
+    <button class="sort-btn active" data-sort="code" id="sort-btn-code" onclick="setSort('code',this)">Codice <span class="sort-arrow" id="sort-code-arrow">↑</span></button>
+    <button class="sort-btn" data-sort="price" id="sort-btn-price" onclick="setSort('price',this)">Prezzo <span class="sort-arrow" id="sort-price-arrow">↓</span></button>
   </div>
 
+  <div class="separator"></div>
+  <div class="sort-group">
+    <span style="font-size:12px;color:var(--text3)">Raggruppa:</span>
+    <button class="sort-btn active" id="grp-btn-rarity" onclick="setGroupBy('rarity',this)">Rarità</button>
+    <button class="sort-btn" id="grp-btn-set" onclick="setGroupBy('set',this)">Espansione</button>
+  </div>
   <div class="separator"></div>
   <div class="view-toggle-group">
     <button class="view-btn active" id="view-btn-grid" onclick="setView('grid',this)" title="Vista griglia">
@@ -1330,11 +1335,8 @@ function loadCards() {
   try { cards = JSON.parse(localStorage.getItem(DB_KEY) || '[]'); } catch { cards = []; }
 }
 function saveCards() { localStorage.setItem(DB_KEY, JSON.stringify(cards)); }
-function saveImgFolder() {
-  localStorage.setItem(FOLDER_KEY, document.getElementById('img-folder').value.trim());
-  renderDetail();
-}
-function getImgFolder() { return localStorage.getItem(FOLDER_KEY) || 'immagini/'; }
+function saveImgFolder() { /* img-folder input removed */ }
+function getImgFolder() { return 'immagini/'; }
 
 // --- IMG ---
 function getImgSrc(code) {
@@ -1357,8 +1359,10 @@ function setFilter(f, btn) {
 }
 function setRarity(r, btn) {
   activeRarity = r;
-  document.querySelectorAll('[data-rarity]').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
+  renderGrid();
+}
+function setRaritySelect(val) {
+  activeRarity = val;
   renderGrid();
 }
 
@@ -1415,42 +1419,64 @@ function renderGrid() {
     return; // keep detail panel visible on desktop
   }
 
-  if (sortBy !== 'rarity') {
-    // Flat sorted grid
-    const sorted = sortCards(filtered);
-    container.innerHTML = `<div class="rarity-group"><div class="cards-grid">${sorted.map(c=>cardThumbHTML(c)).join('')}</div></div>`;
-  } else {
-    // Group by rarity, preserving order SCR★ > L★ > SR★ > (no rarity)
-    const groups = {};
-    filtered.forEach(c => {
-      const r = c.rarity || '';
-      if (!groups[r]) groups[r] = [];
-      groups[r].push(c);
-    });
+  {  // Always group (by rarity or set), but sort within groups
+    if (groupBy === 'set') {
+      // Group by expansion, alphabetical order
+      const groups = {};
+      filtered.forEach(card => {
+        const key = card.set || 'Sconosciuto';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(card);
+      });
+      const sortedKeys = Object.keys(groups).sort((a,b) => a.localeCompare(b));
 
-    const sortedKeys = Object.keys(groups).sort((a,b) => (RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99));
-    const showHeaders = activeRarity === '';
+      container.innerHTML = sortedKeys.map(setKey => {
+        const grpCards = groups[setKey];
+        const haveCount = grpCards.filter(c=>c.status==='have').length;
+        const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
+        return `<div class="rarity-group">
+          <div class="rarity-header">
+            <span class="rarity-label none" style="font-size:12px;letter-spacing:1px">${esc(setKey)}</span>
+            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}</span>
+            <div class="rarity-divider"></div>
+          </div>
+          <div class="cards-grid">${sortCards(grpCards).map(c=>cardThumbHTML(c)).join('')}</div>
+        </div>`;
+      }).join('');
 
-    container.innerHTML = sortedKeys.map(r => {
-      const grpCards = groups[r];
-      const rKey = RARITY_KEY[r] || 'none';
-      const label = r || 'Rarità non specificata';
-      const haveCount = grpCards.filter(c=>c.status==='have').length;
-      const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
-      const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
+    } else {
+      // Group by rarity, preserving order SCR★ > L★ > SR★ > (no rarity)
+      const groups = {};
+      filtered.forEach(card => {
+        const r = card.rarity || '';
+        if (!groups[r]) groups[r] = [];
+        groups[r].push(card);
+      });
 
-      const header = showHeaders ? `
-        <div class="rarity-header">
-          <span class="rarity-label ${rKey}">${label}</span>
-          <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}</span>
-          <div class="rarity-divider"></div>
-        </div>` : '';
+      const sortedKeys = Object.keys(groups).sort((a,b) => (RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99));
+      const showHeaders = activeRarity === '';
 
-      return `<div class="rarity-group">
-        ${header}
-        <div class="cards-grid">${grpCards.map(c=>cardThumbHTML(c)).join('')}</div>
-      </div>`;
-    }).join('');
+      container.innerHTML = sortedKeys.map(r => {
+        const grpCards = groups[r];
+        const rKey = RARITY_KEY[r] || 'none';
+        const label = r || 'Rarità non specificata';
+        const haveCount = grpCards.filter(c=>c.status==='have').length;
+        const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
+
+        const header = showHeaders ? `
+          <div class="rarity-header">
+            <span class="rarity-label ${rKey}">${label}</span>
+            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}</span>
+            <div class="rarity-divider"></div>
+          </div>` : '';
+
+        return `<div class="rarity-group">
+          ${header}
+          <div class="cards-grid">${sortCards(grpCards).map(c=>cardThumbHTML(c)).join('')}</div>
+        </div>`;
+      }).join('');
   }
 }
 
@@ -1889,8 +1915,8 @@ function forgetGistCredentials() {
   localStorage.removeItem(GIST_ID_KEY);
   document.getElementById('gist-token').value = '';
   document.getElementById('gist-id').value    = '';
-  document.getElementById('gist-btn').classList.remove('synced');
-  document.getElementById('gist-btn-label').textContent = 'Gist Sync';
+  const gb = document.getElementById('gist-menu-item'); if(gb) gb.style.color='';
+  const lbl2 = document.getElementById('gist-btn-label'); if(lbl2) lbl2.textContent = 'Gist Sync';
   updateGistIdHint();
   setGistStatus('Credenziali rimosse da questo browser.', 'info');
 }
@@ -2223,8 +2249,16 @@ function renderTable(filtered) {
 }
 
 // --- SORT ---
-let sortBy  = 'rarity';
+let sortBy  = 'code';
 let sortDir = { code: 1, price: -1 };
+let groupBy = 'rarity'; // 'rarity' | 'set'
+function setGroupBy(by, btn) {
+  groupBy = by;
+  document.querySelectorAll('#grp-btn-rarity, #grp-btn-set').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
+
 function setSort(by, btn) {
   if (sortBy === by && by !== 'rarity') {
     sortDir[by] *= -1;
@@ -2236,7 +2270,6 @@ function setSort(by, btn) {
   renderGrid();
 }
 function sortCards(arr) {
-  if (sortBy === 'rarity') return arr; // rarity groups handle order
   return [...arr].sort((a, b) => {
     if (sortBy === 'code')  return a.code.localeCompare(b.code) * sortDir.code;
     if (sortBy === 'price') {
