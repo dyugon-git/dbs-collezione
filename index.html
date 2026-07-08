@@ -1546,8 +1546,7 @@ function renderGrid() {
         groups[r].push(card);
       });
 
-      const rarDir = (sortBy === 'rarity') ? sortDir.rarity : -1; // -1=SCR first (default)
-      const sortedKeys = Object.keys(groups).sort((a,b) => ((RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99)) * rarDir);
+      const sortedKeys = Object.keys(groups).sort((a,b) => ((RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99)) * groupRarityDir);
       const showHeaders = activeRarity === '';
 
       container.innerHTML = sortedKeys.map(r => {
@@ -2143,105 +2142,143 @@ function drawBudgetLineChart() {
   canvas.style.display = 'block';
   if (emptyEl) emptyEl.style.display = 'none';
 
-  // Compute cumulative balance per month
-  const allMonths = months.slice();
-  const data = allMonths.map(m => {
-    // Cumulative up to end of this month
-    const total = budgetEntries
+  // Per-month delta and cumulative
+  const data = months.map(m => {
+    const delta = budgetEntries
+      .filter(e => e.date.slice(0,7) === m)
+      .reduce((s,e) => s+e.amount, 0);
+    const cumulative = budgetEntries
       .filter(e => e.date.slice(0,7) <= m)
       .reduce((s,e) => s+e.amount, 0);
-    return { month: m, total };
+    return { month: m, delta, cumulative };
   });
 
   const ctx = canvas.getContext('2d');
   const W = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
   const H = 180;
-  canvas.width = W;
-  canvas.height = H;
-  ctx.clearRect(0, 0, W, H);
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
-  const pad = { top: 20, right: 20, bottom: 30, left: 55 };
+  const pad = { top: 20, right: 16, bottom: 30, left: 55 };
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
+  const n = data.length;
 
-  const values = data.map(d => d.total);
-  const minVal = Math.min(0, ...values);
-  const maxVal = Math.max(0, ...values);
-  const range = maxVal - minVal || 1;
+  const allVals = data.map(d => d.delta);
+  const minVal = Math.min(0, ...allVals);
+  const maxVal = Math.max(0, ...allVals);
+  const range = (maxVal - minVal) || 1;
+  const toY = v => pad.top + chartH - ((v - minVal) / range) * chartH;
+  const zeroY = toY(0);
 
-  const toX = (i) => pad.left + (i / Math.max(data.length - 1, 1)) * chartW;
-  const toY = (v) => pad.top + chartH - ((v - minVal) / range) * chartH;
+  const barW = Math.max(4, Math.min(40, (chartW / n) * 0.6));
+  const gap  = chartW / n;
+
+  ctx.clearRect(0, 0, W, H);
 
   // Grid lines
   ctx.strokeStyle = 'rgba(255,255,255,0.05)';
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
-    const y = pad.top + (i / 4) * chartH;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    const y = pad.top + (i/4)*chartH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left+chartW, y); ctx.stroke();
   }
 
   // Zero line
-  const zeroY = toY(0);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(pad.left + chartW, zeroY); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(pad.left+chartW, zeroY); ctx.stroke();
   ctx.setLineDash([]);
 
-  // Area fill
-  ctx.beginPath();
-  ctx.moveTo(toX(0), zeroY);
-  data.forEach((d, i) => ctx.lineTo(toX(i), toY(d.total)));
-  ctx.lineTo(toX(data.length - 1), zeroY);
-  ctx.closePath();
-  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-  grad.addColorStop(0, 'rgba(0,201,122,0.25)');
-  grad.addColorStop(1, 'rgba(0,201,122,0.02)');
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Line
-  ctx.beginPath();
-  data.forEach((d, i) => i === 0 ? ctx.moveTo(toX(i), toY(d.total)) : ctx.lineTo(toX(i), toY(d.total)));
-  ctx.strokeStyle = 'var(--green)';
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-
-  // Dots
+  // Bars
   data.forEach((d, i) => {
+    const x = pad.left + i * gap + gap/2 - barW/2;
+    const isPos = d.delta >= 0;
+    const y = isPos ? toY(d.delta) : zeroY;
+    const h = Math.abs(toY(d.delta) - zeroY) || 1;
+    ctx.fillStyle = isPos ? 'rgba(0,201,122,0.75)' : 'rgba(255,64,96,0.75)';
+    const r = Math.min(4, barW/2);
     ctx.beginPath();
-    ctx.arc(toX(i), toY(d.total), 4, 0, Math.PI * 2);
-    ctx.fillStyle = d.total >= 0 ? 'var(--green)' : 'var(--red)';
+    if (isPos) {
+      ctx.roundRect ? ctx.roundRect(x, y, barW, h, [r,r,0,0]) : ctx.rect(x, y, barW, h);
+    } else {
+      ctx.roundRect ? ctx.roundRect(x, zeroY, barW, h, [0,0,r,r]) : ctx.rect(x, zeroY, barW, h);
+    }
     ctx.fill();
-    ctx.strokeStyle = '#12121e';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
   });
 
-  // Labels: Y axis
+  // Y axis labels
   ctx.fillStyle = '#5a5a80';
   ctx.font = '10px Segoe UI,system-ui,sans-serif';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
-    const v = minVal + (range * (1 - i/4));
-    const y = pad.top + (i / 4) * chartH;
-    ctx.fillText('€'+Math.round(v), pad.left - 6, y + 3);
+    const v = minVal + range*(1-i/4);
+    ctx.fillText('€'+Math.round(v), pad.left-6, pad.top+(i/4)*chartH+3);
   }
 
-  // Labels: X axis (month names)
+  // X axis labels
   const monthNames = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
   ctx.textAlign = 'center';
-  const maxLabels = Math.floor(chartW / 40);
-  const step = Math.max(1, Math.ceil(data.length / maxLabels));
+  const maxLbls = Math.floor(chartW/38);
+  const step = Math.max(1, Math.ceil(n/maxLbls));
   data.forEach((d, i) => {
-    if (i % step !== 0 && i !== data.length - 1) return;
+    if (i % step !== 0 && i !== n-1) return;
     const [y, m] = d.month.split('-');
-    const lbl = monthNames[parseInt(m)-1] + (data.length > 12 ? ' ' + y.slice(2) : '');
+    const lbl = monthNames[parseInt(m)-1] + (n > 12 ? ' '+y.slice(2) : '');
     ctx.fillStyle = '#5a5a80';
-    ctx.fillText(lbl, toX(i), H - 8);
+    ctx.fillText(lbl, pad.left + i*gap + gap/2, H-8);
   });
+
+  // Store data for tooltip
+  canvas._chartData = { data, pad, gap, barW, zeroY, chartH, W, H };
+  attachBudgetChartTooltip(canvas);
 }
+
+function attachBudgetChartTooltip(canvas) {
+  // Remove old listener if any
+  if (canvas._ttListener) canvas.removeEventListener('mousemove', canvas._ttListener);
+  if (canvas._ttLeave)    canvas.removeEventListener('mouseleave', canvas._ttLeave);
+
+  const monthNames = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+  canvas._ttListener = function(e) {
+    const cd = canvas._chartData;
+    if (!cd) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left);
+    const { data, pad, gap, barW } = cd;
+    let tooltip = document.getElementById('budget-bar-tooltip');
+    if (!tooltip) {
+      tooltip = document.createElement('div');
+      tooltip.id = 'budget-bar-tooltip';
+      tooltip.style.cssText = 'position:fixed;background:var(--surface3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:12px;pointer-events:none;z-index:500;display:none;';
+      document.body.appendChild(tooltip);
+    }
+    const idx = Math.floor((mx - pad.left) / gap);
+    if (idx < 0 || idx >= data.length) { tooltip.style.display='none'; return; }
+    const d = data[idx];
+    const [y, m] = d.month.split('-');
+    const sign = d.delta >= 0 ? '+' : '';
+    const col  = d.delta >= 0 ? 'var(--green)' : 'var(--red)';
+    const cumCol = d.cumulative >= 0 ? 'var(--green)' : 'var(--red)';
+    tooltip.innerHTML = `<div style="font-weight:700;color:var(--text);margin-bottom:4px">${monthNames[parseInt(m)-1]} ${y}</div>
+      <div>Mese: <strong style="color:${col}">${sign}€${Math.abs(d.delta).toFixed(2)}</strong></div>
+      <div>Totale: <strong style="color:${cumCol}">${d.cumulative>=0?'+':''}€${d.cumulative.toFixed(2)}</strong></div>`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+  };
+  canvas._ttLeave = () => {
+    const t = document.getElementById('budget-bar-tooltip');
+    if (t) t.style.display = 'none';
+  };
+  canvas.addEventListener('mousemove', canvas._ttListener);
+  canvas.addEventListener('mouseleave', canvas._ttLeave);
+}
+
 
 // --- BUDGET ---
 const BUDGET_KEY = 'dbsfw_budget';
@@ -2622,7 +2659,8 @@ function toggleGroupCollapse(key, event) {
 
 // --- SORT ---
 let sortBy  = 'code';
-let sortDir = { code: 1, price: -1, rarity: -1, name: 1, set: 1 }; // rarity: -1=SCR→SR (desc), 1=SR→SCR (asc)
+let sortDir = { code: 1, price: -1, rarity: -1, name: 1, set: 1 };
+let groupRarityDir = -1; // -1=SCR first (default), 1=SR first — only changes via Rarità sort btn (asc)
 let groupBy = 'rarity'; // 'rarity' | 'set'
 function setGroupBy(by, btn) {
   groupBy = by;
@@ -2634,12 +2672,13 @@ function setGroupBy(by, btn) {
 function setSort(by, btn) {
   if (sortBy === by) {
     sortDir[by] *= -1;
-    // rarity: ↑ = SR→L→SCR (ascending index = lower rarity first), ↓ = SCR→L→SR
-    const rarityUpLabel  = '↑'; // SR→L→SCR (up = common first)
-    const rarityDnLabel  = '↓'; // SCR→L→SR (down = rarest first)
-    const arrowEl = document.getElementById('sort-'+by+'-arrow');
-    if (arrowEl) arrowEl.textContent = sortDir[by] === 1 ? '↑' : '↓';
+    if (by === 'rarity') groupRarityDir = sortDir.rarity; // sync group order
+  } else if (by === 'rarity') {
+    // Switching TO rarity sort: also update groupRarityDir
+    groupRarityDir = sortDir.rarity;
   }
+  const arrowEl = document.getElementById('sort-'+by+'-arrow');
+  if (arrowEl) arrowEl.textContent = sortDir[by] === 1 ? '↑' : '↓';
   sortBy = by;
   document.querySelectorAll('[data-sort]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
