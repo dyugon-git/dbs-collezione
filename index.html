@@ -970,6 +970,21 @@
   .rarity-group.collapsed .table-scroll-wrap { display: none; }
   .rarity-group.collapsed .rarity-collapse-icon { transform: rotate(-90deg); }
 
+
+  .budget-month-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .budget-month-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 120px;
+    text-align: center;
+  }
+
 </style>
 </head>
 <body>
@@ -1253,6 +1268,23 @@
 
 <!-- BUDGET PAGE -->
 <div class="stats-page" id="budget-page" style="display:none;">
+  <!-- Month navigator -->
+  <div class="budget-month-nav" id="budget-month-nav">
+    <button class="btn btn-sm" onclick="budgetMonthShift(-1)">&#8592;</button>
+    <span class="budget-month-label" id="budget-month-label">Tutti</span>
+    <button class="btn btn-sm" onclick="budgetMonthShift(1)">&#8594;</button>
+    <button class="btn btn-sm" onclick="setBudgetMonthAll()" id="budget-all-btn" style="color:var(--accent);border-color:var(--accent)">Tutti</button>
+  </div>
+
+  <!-- Line chart -->
+  <div class="chart-card" style="margin-bottom:24px">
+    <div class="chart-title">Andamento budget mensile</div>
+    <div style="position:relative;width:100%;height:180px;">
+      <canvas id="budget-line-chart" style="width:100%;height:180px;"></canvas>
+    </div>
+    <div id="budget-chart-empty" style="display:none;text-align:center;color:var(--text3);font-size:13px;padding:20px">Aggiungi movimenti per vedere il grafico</div>
+  </div>
+
   <div class="budget-header">
     <div class="budget-kpi-row">
       <div class="kpi-card">
@@ -1491,11 +1523,13 @@ function renderGrid() {
         const haveCount = grpCards.filter(c=>c.status==='have').length;
         const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
         const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
+        const missingValue = grpCards.filter(c=>c.status==='missing'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const missingStr = missingValue > 0 ? ` <span style="color:var(--text3);font-weight:400;font-size:11px">(−€${missingValue.toFixed(0)})</span>` : '';
         const isCollapsed = collapsedGroups.has('set:'+setKey);
         return `<div class="rarity-group${isCollapsed ? ' collapsed' : ''}">
           <div class="rarity-header" onclick="toggleGroupCollapse('set:${setKey.replace(/'/g,"\\'")}', event)">
             <span class="rarity-label none" style="font-size:12px;letter-spacing:1px">${esc(setKey)}</span>
-            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}</span>
+            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}${missingStr}</span>
             <div class="rarity-divider"></div>
             <span class="rarity-collapse-icon">▼</span>
           </div>
@@ -1512,7 +1546,8 @@ function renderGrid() {
         groups[r].push(card);
       });
 
-      const sortedKeys = Object.keys(groups).sort((a,b) => (RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99));
+      const rarDir = (sortBy === 'rarity') ? sortDir.rarity : -1; // -1=SCR first (default)
+      const sortedKeys = Object.keys(groups).sort((a,b) => ((RARITY_ORDER[a]??99) - (RARITY_ORDER[b]??99)) * rarDir);
       const showHeaders = activeRarity === '';
 
       container.innerHTML = sortedKeys.map(r => {
@@ -1522,13 +1557,15 @@ function renderGrid() {
         const haveCount = grpCards.filter(c=>c.status==='have').length;
         const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
         const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
+        const missingValue = grpCards.filter(c=>c.status==='missing'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const missingStr = missingValue > 0 ? ` <span style="color:var(--text3);font-weight:400;font-size:11px">(−€${missingValue.toFixed(0)})</span>` : '';
 
         const groupKey = 'rarity:'+r;
         const isCollapsed = collapsedGroups.has(groupKey);
         const header = showHeaders ? `
           <div class="rarity-header" onclick="toggleGroupCollapse('${groupKey.replace(/'/g,"\\'")}', event)">
             <span class="rarity-label ${rKey}">${label}</span>
-            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}</span>
+            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}${missingStr}</span>
             <div class="rarity-divider"></div>
             <span class="rarity-collapse-icon">▼</span>
           </div>` : '';
@@ -2048,6 +2085,164 @@ function forgetGistCredentials() {
   setGistStatus('Credenziali rimosse da questo browser.', 'info');
 }
 
+// --- BUDGET MONTH FILTER ---
+let budgetMonthFilter = null; // null = all, or 'YYYY-MM'
+
+function setBudgetMonthAll() {
+  budgetMonthFilter = null;
+  updateBudgetMonthLabel();
+  renderBudget();
+}
+
+function budgetMonthShift(dir) {
+  const months = getAvailableMonths();
+  if (!months.length) return;
+  if (budgetMonthFilter === null) {
+    budgetMonthFilter = dir > 0 ? months[0] : months[months.length - 1];
+  } else {
+    const idx = months.indexOf(budgetMonthFilter);
+    const next = idx + dir;
+    if (next < 0 || next >= months.length) { budgetMonthFilter = null; }
+    else budgetMonthFilter = months[next];
+  }
+  updateBudgetMonthLabel();
+  renderBudget();
+}
+
+function getAvailableMonths() {
+  const set = new Set(budgetEntries.map(e => e.date.slice(0,7)));
+  return [...set].sort();
+}
+
+function updateBudgetMonthLabel() {
+  const el = document.getElementById('budget-month-label');
+  const btn = document.getElementById('budget-all-btn');
+  if (!el) return;
+  if (!budgetMonthFilter) {
+    el.textContent = 'Tutti';
+    if (btn) btn.style.opacity = '0.4';
+  } else {
+    const [y, m] = budgetMonthFilter.split('-');
+    const months = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+    el.textContent = months[parseInt(m)-1] + ' ' + y;
+    if (btn) btn.style.opacity = '1';
+  }
+}
+
+function drawBudgetLineChart() {
+  const canvas = document.getElementById('budget-line-chart');
+  const emptyEl = document.getElementById('budget-chart-empty');
+  if (!canvas) return;
+
+  const months = getAvailableMonths();
+  if (months.length < 1) {
+    canvas.style.display = 'none';
+    if (emptyEl) emptyEl.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  // Compute cumulative balance per month
+  const allMonths = months.slice();
+  const data = allMonths.map(m => {
+    // Cumulative up to end of this month
+    const total = budgetEntries
+      .filter(e => e.date.slice(0,7) <= m)
+      .reduce((s,e) => s+e.amount, 0);
+    return { month: m, total };
+  });
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+  const H = 180;
+  canvas.width = W;
+  canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 20, right: 20, bottom: 30, left: 55 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const values = data.map(d => d.total);
+  const minVal = Math.min(0, ...values);
+  const maxVal = Math.max(0, ...values);
+  const range = maxVal - minVal || 1;
+
+  const toX = (i) => pad.left + (i / Math.max(data.length - 1, 1)) * chartW;
+  const toY = (v) => pad.top + chartH - ((v - minVal) / range) * chartH;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (i / 4) * chartH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+  }
+
+  // Zero line
+  const zeroY = toY(0);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(pad.left + chartW, zeroY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Area fill
+  ctx.beginPath();
+  ctx.moveTo(toX(0), zeroY);
+  data.forEach((d, i) => ctx.lineTo(toX(i), toY(d.total)));
+  ctx.lineTo(toX(data.length - 1), zeroY);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+  grad.addColorStop(0, 'rgba(0,201,122,0.25)');
+  grad.addColorStop(1, 'rgba(0,201,122,0.02)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  data.forEach((d, i) => i === 0 ? ctx.moveTo(toX(i), toY(d.total)) : ctx.lineTo(toX(i), toY(d.total)));
+  ctx.strokeStyle = 'var(--green)';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  // Dots
+  data.forEach((d, i) => {
+    ctx.beginPath();
+    ctx.arc(toX(i), toY(d.total), 4, 0, Math.PI * 2);
+    ctx.fillStyle = d.total >= 0 ? 'var(--green)' : 'var(--red)';
+    ctx.fill();
+    ctx.strokeStyle = '#12121e';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // Labels: Y axis
+  ctx.fillStyle = '#5a5a80';
+  ctx.font = '10px Segoe UI,system-ui,sans-serif';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const v = minVal + (range * (1 - i/4));
+    const y = pad.top + (i / 4) * chartH;
+    ctx.fillText('€'+Math.round(v), pad.left - 6, y + 3);
+  }
+
+  // Labels: X axis (month names)
+  const monthNames = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  ctx.textAlign = 'center';
+  const maxLabels = Math.floor(chartW / 40);
+  const step = Math.max(1, Math.ceil(data.length / maxLabels));
+  data.forEach((d, i) => {
+    if (i % step !== 0 && i !== data.length - 1) return;
+    const [y, m] = d.month.split('-');
+    const lbl = monthNames[parseInt(m)-1] + (data.length > 12 ? ' ' + y.slice(2) : '');
+    ctx.fillStyle = '#5a5a80';
+    ctx.fillText(lbl, toX(i), H - 8);
+  });
+}
+
 // --- BUDGET ---
 const BUDGET_KEY = 'dbsfw_budget';
 let budgetEntries = [];
@@ -2134,7 +2329,12 @@ function renderBudget() {
   const empty = document.getElementById('budget-empty');
   if (!tbody) return;
 
-  const sorted = [...budgetEntries].sort((a, b) => {
+  // Filter by month
+  const filtered = budgetMonthFilter
+    ? budgetEntries.filter(e => e.date.slice(0,7) === budgetMonthFilter)
+    : budgetEntries;
+
+  const sorted = [...filtered].sort((a, b) => {
     if (budgetSortCol === 'date')   return a.date.localeCompare(b.date) * budgetSortDir;
     if (budgetSortCol === 'desc')   return a.desc.localeCompare(b.desc) * budgetSortDir;
     if (budgetSortCol === 'amount') return (a.amount - b.amount) * budgetSortDir;
@@ -2144,11 +2344,9 @@ function renderBudget() {
   if (!sorted.length) {
     tbody.innerHTML = '';
     empty.style.display = 'flex';
-    return;
-  }
-  empty.style.display = 'none';
-
-  tbody.innerHTML = sorted.map(e => {
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = sorted.map(e => {
     const pos = e.amount >= 0;
     const amountStr = (pos ? '+' : '') + '€' + Math.abs(e.amount).toFixed(2);
     const dateStr = e.date.split('-').reverse().join('/');
@@ -2170,9 +2368,9 @@ function renderBudget() {
   }).join('');
 
   // Update KPIs
-  const total  = budgetEntries.reduce((s, e) => s + e.amount, 0);
-  const income = budgetEntries.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0);
-  const outgo  = budgetEntries.filter(e => e.amount < 0).reduce((s, e) => s + e.amount, 0);
+  const total  = filtered.reduce((s, e) => s + e.amount, 0);
+  const income = filtered.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0);
+  const outgo  = filtered.filter(e => e.amount < 0).reduce((s, e) => s + e.amount, 0);
   const totalEl = document.getElementById('budget-total');
   if (totalEl) {
     totalEl.textContent = (total >= 0 ? '+' : '') + '€' + total.toFixed(2);
@@ -2183,7 +2381,10 @@ function renderBudget() {
   const outEl = document.getElementById('budget-out');
   if (outEl) outEl.textContent = '-€' + Math.abs(outgo).toFixed(2);
   const subEl = document.getElementById('budget-sub');
-  if (subEl) subEl.textContent = budgetEntries.length + ' moviment' + (budgetEntries.length === 1 ? 'o' : 'i');
+  if (subEl) subEl.textContent = filtered.length + ' moviment' + (filtered.length === 1 ? 'o' : 'i');
+  }
+  drawBudgetLineChart();
+  updateBudgetMonthLabel();
 }
 
 function updateBudgetStat() {
@@ -2379,6 +2580,8 @@ function renderTable(filtered) {
     const haveCount = grpCards.filter(c=>c.status==='have').length;
     const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
     const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
+        const missingValue = grpCards.filter(c=>c.status==='missing'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const missingStr = missingValue > 0 ? ` <span style="color:var(--text3);font-weight:400;font-size:11px">(−€${missingValue.toFixed(0)})</span>` : '';
     const rKey = RARITY_KEY[key] || 'none';
     const labelCls = groupBy === 'rarity' ? rKey : 'none';
     const label = key || 'Rarità non specificata';
@@ -2388,7 +2591,7 @@ function renderTable(filtered) {
     const header = showHeaders ? `
       <div class="rarity-header" style="margin-bottom:8px" onclick="toggleGroupCollapse('${groupKey.replace(/'/g,"\\'")}', event)">
         <span class="rarity-label ${labelCls}">${esc(label)}</span>
-        <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}</span>
+        <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}${missingStr}</span>
         <div class="rarity-divider"></div>
         <span class="rarity-collapse-icon">▼</span>
       </div>` : '';
