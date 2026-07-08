@@ -1268,21 +1268,40 @@
 
 <!-- BUDGET PAGE -->
 <div class="stats-page" id="budget-page" style="display:none;">
-  <!-- Month navigator -->
+  <!-- Month filter selects -->
   <div class="budget-month-nav" id="budget-month-nav">
-    <button class="btn btn-sm" onclick="budgetMonthShift(-1)">&#8592;</button>
-    <span class="budget-month-label" id="budget-month-label">Tutti</span>
-    <button class="btn btn-sm" onclick="budgetMonthShift(1)">&#8594;</button>
-    <button class="btn btn-sm" onclick="setBudgetMonthAll()" id="budget-all-btn" style="color:var(--accent);border-color:var(--accent)">Tutti</button>
+    <span style="font-size:12px;color:var(--text2)">Filtra:</span>
+    <select id="budget-filter-year" onchange="onBudgetFilterChange()" style="font-size:13px;padding:6px 10px">
+      <option value="">Tutti gli anni</option>
+    </select>
+    <select id="budget-filter-month" onchange="onBudgetFilterChange()" style="font-size:13px;padding:6px 10px">
+      <option value="">Tutti i mesi</option>
+      <option value="01">Gennaio</option><option value="02">Febbraio</option>
+      <option value="03">Marzo</option><option value="04">Aprile</option>
+      <option value="05">Maggio</option><option value="06">Giugno</option>
+      <option value="07">Luglio</option><option value="08">Agosto</option>
+      <option value="09">Settembre</option><option value="10">Ottobre</option>
+      <option value="11">Novembre</option><option value="12">Dicembre</option>
+    </select>
+    <button class="btn btn-sm" onclick="clearBudgetFilter()" style="color:var(--text3)">✕ Reset</button>
   </div>
 
-  <!-- Line chart -->
-  <div class="chart-card" style="margin-bottom:24px">
-    <div class="chart-title">Andamento budget mensile</div>
-    <div style="position:relative;width:100%;height:180px;">
-      <canvas id="budget-line-chart" style="width:100%;height:180px;"></canvas>
+  <!-- Charts row -->
+  <div class="stats-charts-row" style="margin-bottom:24px">
+    <div class="chart-card">
+      <div class="chart-title">Saldo cumulativo nel tempo</div>
+      <div style="position:relative;width:100%;height:180px;">
+        <canvas id="budget-line-chart" style="width:100%;height:180px;"></canvas>
+      </div>
+      <div id="budget-line-empty" style="display:none;text-align:center;color:var(--text3);font-size:13px;padding:20px">Nessun dato</div>
     </div>
-    <div id="budget-chart-empty" style="display:none;text-align:center;color:var(--text3);font-size:13px;padding:20px">Aggiungi movimenti per vedere il grafico</div>
+    <div class="chart-card">
+      <div class="chart-title">Entrate vs uscite per mese</div>
+      <div style="position:relative;width:100%;height:180px;">
+        <canvas id="budget-bar-chart" style="width:100%;height:180px;"></canvas>
+      </div>
+      <div id="budget-bar-empty" style="display:none;text-align:center;color:var(--text3);font-size:13px;padding:20px">Nessun dato</div>
+    </div>
   </div>
 
   <div class="budget-header">
@@ -2085,199 +2104,249 @@ function forgetGistCredentials() {
 }
 
 // --- BUDGET MONTH FILTER ---
-let budgetMonthFilter = null; // null = all, or 'YYYY-MM'
-
-function setBudgetMonthAll() {
-  budgetMonthFilter = null;
-  updateBudgetMonthLabel();
-  renderBudget();
-}
-
-function budgetMonthShift(dir) {
-  const months = getAvailableMonths();
-  if (!months.length) return;
-  if (budgetMonthFilter === null) {
-    budgetMonthFilter = dir > 0 ? months[0] : months[months.length - 1];
-  } else {
-    const idx = months.indexOf(budgetMonthFilter);
-    const next = idx + dir;
-    if (next < 0 || next >= months.length) { budgetMonthFilter = null; }
-    else budgetMonthFilter = months[next];
-  }
-  updateBudgetMonthLabel();
-  renderBudget();
-}
-
-function getAvailableMonths() {
-  const set = new Set(budgetEntries.map(e => e.date.slice(0,7)));
+function getAvailableYears() {
+  const set = new Set(budgetEntries.map(e => e.date.slice(0,4)));
   return [...set].sort();
 }
 
-function updateBudgetMonthLabel() {
-  const el = document.getElementById('budget-month-label');
-  const btn = document.getElementById('budget-all-btn');
-  if (!el) return;
-  if (!budgetMonthFilter) {
-    el.textContent = 'Tutti';
-    if (btn) btn.style.opacity = '0.4';
-  } else {
-    const [y, m] = budgetMonthFilter.split('-');
-    const months = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
-    el.textContent = months[parseInt(m)-1] + ' ' + y;
-    if (btn) btn.style.opacity = '1';
-  }
+function populateBudgetYearSelect() {
+  const sel = document.getElementById('budget-filter-year');
+  if (!sel) return;
+  const cur = sel.value;
+  const years = getAvailableYears();
+  sel.innerHTML = '<option value="">Tutti gli anni</option>' +
+    years.map(y => `<option value="${y}"${y===cur?' selected':''}>${y}</option>`).join('');
+}
+
+function onBudgetFilterChange() { renderBudget(); }
+
+function clearBudgetFilter() {
+  const sy = document.getElementById('budget-filter-year');
+  const sm = document.getElementById('budget-filter-month');
+  if (sy) sy.value = '';
+  if (sm) sm.value = '';
+  renderBudget();
+}
+
+function getBudgetFilteredEntries() {
+  const year  = (document.getElementById('budget-filter-year')  || {}).value || '';
+  const month = (document.getElementById('budget-filter-month') || {}).value || '';
+  return budgetEntries.filter(e => {
+    if (year  && !e.date.startsWith(year))       return false;
+    if (month && e.date.slice(5,7) !== month)    return false;
+    return true;
+  });
 }
 
 function drawBudgetLineChart() {
   const canvas = document.getElementById('budget-line-chart');
-  const emptyEl = document.getElementById('budget-chart-empty');
+  const emptyEl = document.getElementById('budget-line-empty');
   if (!canvas) return;
 
-  const months = getAvailableMonths();
-  if (months.length < 1) {
-    canvas.style.display = 'none';
-    if (emptyEl) emptyEl.style.display = 'block';
-    return;
+  const months = [...new Set(budgetEntries.map(e=>e.date.slice(0,7)))].sort();
+  if (!months.length) {
+    canvas.style.display='none'; if(emptyEl) emptyEl.style.display='block'; return;
   }
-  canvas.style.display = 'block';
-  if (emptyEl) emptyEl.style.display = 'none';
+  canvas.style.display='block'; if(emptyEl) emptyEl.style.display='none';
 
-  // Per-month delta and cumulative
+  const data = months.map(m => ({
+    month: m,
+    cumulative: budgetEntries.filter(e=>e.date.slice(0,7)<=m).reduce((s,e)=>s+e.amount,0)
+  }));
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || canvas.parentElement.offsetWidth || 300;
+  const H = 180;
+  canvas.width = W * devicePixelRatio; canvas.height = H * devicePixelRatio;
+  canvas.style.width = W+'px'; canvas.style.height = H+'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const pad = {top:20,right:16,bottom:30,left:55};
+  const cW = W-pad.left-pad.right, cH = H-pad.top-pad.bottom;
+  const vals = data.map(d=>d.cumulative);
+  const minV = Math.min(0,...vals), maxV = Math.max(0,...vals);
+  const range = (maxV-minV)||1;
+  const toX = i => pad.left + (i/Math.max(data.length-1,1))*cW;
+  const toY = v => pad.top + cH - ((v-minV)/range)*cH;
+  const zeroY = toY(0);
+  const monthNames = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pad.top+(i/4)*cH;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(pad.left+cW,y);ctx.stroke();}
+
+  // Zero line
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(pad.left,zeroY);ctx.lineTo(pad.left+cW,zeroY);ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Area fill
+  ctx.beginPath(); ctx.moveTo(toX(0),zeroY);
+  data.forEach((d,i)=>ctx.lineTo(toX(i),toY(d.cumulative)));
+  ctx.lineTo(toX(data.length-1),zeroY); ctx.closePath();
+  const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+cH);
+  grad.addColorStop(0,'rgba(0,201,122,0.2)'); grad.addColorStop(1,'rgba(0,201,122,0.02)');
+  ctx.fillStyle=grad; ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  data.forEach((d,i)=>i===0?ctx.moveTo(toX(i),toY(d.cumulative)):ctx.lineTo(toX(i),toY(d.cumulative)));
+  ctx.strokeStyle='var(--green)'; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
+
+  // Dots
+  data.forEach((d,i)=>{
+    ctx.beginPath(); ctx.arc(toX(i),toY(d.cumulative),3.5,0,Math.PI*2);
+    ctx.fillStyle=d.cumulative>=0?'var(--green)':'var(--red)';
+    ctx.fill(); ctx.strokeStyle='#12121e'; ctx.lineWidth=1.5; ctx.stroke();
+  });
+
+  // Y labels
+  ctx.fillStyle='#5a5a80'; ctx.font='10px Segoe UI,system-ui,sans-serif'; ctx.textAlign='right';
+  for(let i=0;i<=4;i++){const v=minV+range*(1-i/4);ctx.fillText('€'+Math.round(v),pad.left-5,pad.top+(i/4)*cH+3);}
+
+  // X labels
+  ctx.textAlign='center';
+  const step=Math.max(1,Math.ceil(data.length/Math.floor(cW/38)));
+  data.forEach((d,i)=>{
+    if(i%step!==0&&i!==data.length-1)return;
+    const[y,m]=d.month.split('-');
+    ctx.fillStyle='#5a5a80';
+    ctx.fillText(monthNames[parseInt(m)-1]+(data.length>12?' '+y.slice(2):''),toX(i),H-8);
+  });
+
+  // Tooltip
+  if(canvas._ttListener) canvas.removeEventListener('mousemove',canvas._ttListener);
+  if(canvas._ttLeave) canvas.removeEventListener('mouseleave',canvas._ttLeave);
+  canvas._chartDataLine = {data,pad,cW,W};
+  canvas._ttListener = function(e){
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left;
+    const{data,pad,cW}=canvas._chartDataLine;
+    const n=data.length;
+    const idx=Math.round((mx-pad.left)/(cW/Math.max(n-1,1)));
+    if(idx<0||idx>=n){hideBudgetTooltip();return;}
+    const d=data[idx];const[y,mm]=d.month.split('-');
+    const col=d.cumulative>=0?'var(--green)':'var(--red)';
+    showBudgetTooltip(e,`<div style="font-weight:700;color:var(--text);margin-bottom:4px">${['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'][parseInt(mm)-1]} ${y}</div>
+      <div>Saldo totale: <strong style="color:${col}">${d.cumulative>=0?'+':''}€${d.cumulative.toFixed(2)}</strong></div>`);
+  };
+  canvas._ttLeave=hideBudgetTooltip;
+  canvas.addEventListener('mousemove',canvas._ttListener);
+  canvas.addEventListener('mouseleave',canvas._ttLeave);
+}
+
+function drawBudgetBarChart() {
+  const canvas = document.getElementById('budget-bar-chart');
+  const emptyEl = document.getElementById('budget-bar-empty');
+  if (!canvas) return;
+
+  const months = [...new Set(budgetEntries.map(e=>e.date.slice(0,7)))].sort();
+  if (!months.length) {
+    canvas.style.display='none'; if(emptyEl) emptyEl.style.display='block'; return;
+  }
+  canvas.style.display='block'; if(emptyEl) emptyEl.style.display='none';
+
   const data = months.map(m => {
-    const delta = budgetEntries
-      .filter(e => e.date.slice(0,7) === m)
-      .reduce((s,e) => s+e.amount, 0);
-    const cumulative = budgetEntries
-      .filter(e => e.date.slice(0,7) <= m)
-      .reduce((s,e) => s+e.amount, 0);
-    return { month: m, delta, cumulative };
+    const entries = budgetEntries.filter(e=>e.date.slice(0,7)===m);
+    const income = entries.filter(e=>e.amount>0).reduce((s,e)=>s+e.amount,0);
+    const outgo  = entries.filter(e=>e.amount<0).reduce((s,e)=>s+e.amount,0);
+    return {month:m, income, outgo, delta:income+outgo};
   });
 
   const ctx = canvas.getContext('2d');
-  const W = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+  const W = canvas.offsetWidth || canvas.parentElement.offsetWidth || 300;
   const H = 180;
-  canvas.width = W * window.devicePixelRatio;
-  canvas.height = H * window.devicePixelRatio;
-  canvas.style.width = W + 'px';
-  canvas.style.height = H + 'px';
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  canvas.width = W*devicePixelRatio; canvas.height = H*devicePixelRatio;
+  canvas.style.width = W+'px'; canvas.style.height = H+'px';
+  ctx.scale(devicePixelRatio,devicePixelRatio);
 
-  const pad = { top: 20, right: 16, bottom: 30, left: 55 };
-  const chartW = W - pad.left - pad.right;
-  const chartH = H - pad.top - pad.bottom;
-  const n = data.length;
+  const pad={top:20,right:16,bottom:30,left:55};
+  const cW=W-pad.left-pad.right, cH=H-pad.top-pad.bottom;
+  const n=data.length;
+  const allVals=[...data.map(d=>d.income),...data.map(d=>d.outgo)];
+  const minV=Math.min(0,...allVals), maxV=Math.max(0,...allVals);
+  const range=(maxV-minV)||1;
+  const toY=v=>pad.top+cH-((v-minV)/range)*cH;
+  const zeroY=toY(0);
+  const gap=cW/n;
+  const barW=Math.max(3,Math.min(20,gap*0.4));
+  const monthNames=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
 
-  const allVals = data.map(d => d.delta);
-  const minVal = Math.min(0, ...allVals);
-  const maxVal = Math.max(0, ...allVals);
-  const range = (maxVal - minVal) || 1;
-  const toY = v => pad.top + chartH - ((v - minVal) / range) * chartH;
-  const zeroY = toY(0);
+  ctx.clearRect(0,0,W,H);
 
-  const barW = Math.max(4, Math.min(40, (chartW / n) * 0.6));
-  const gap  = chartW / n;
-
-  ctx.clearRect(0, 0, W, H);
-
-  // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.top + (i/4)*chartH;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left+chartW, y); ctx.stroke();
-  }
-
-  // Zero line
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.setLineDash([3,3]);
-  ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(pad.left+chartW, zeroY); ctx.stroke();
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pad.top+(i/4)*cH;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(pad.left+cW,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(pad.left,zeroY);ctx.lineTo(pad.left+cW,zeroY);ctx.stroke();
   ctx.setLineDash([]);
 
-  // Bars
-  data.forEach((d, i) => {
-    const x = pad.left + i * gap + gap/2 - barW/2;
-    const isPos = d.delta >= 0;
-    const y = isPos ? toY(d.delta) : zeroY;
-    const h = Math.abs(toY(d.delta) - zeroY) || 1;
-    ctx.fillStyle = isPos ? 'rgba(0,201,122,0.75)' : 'rgba(255,64,96,0.75)';
-    const r = Math.min(4, barW/2);
-    ctx.beginPath();
-    if (isPos) {
-      ctx.roundRect ? ctx.roundRect(x, y, barW, h, [r,r,0,0]) : ctx.rect(x, y, barW, h);
-    } else {
-      ctx.roundRect ? ctx.roundRect(x, zeroY, barW, h, [0,0,r,r]) : ctx.rect(x, zeroY, barW, h);
+  // Bars: income (green) left, outgo (red) right per slot
+  data.forEach((d,i)=>{
+    const cx=pad.left+i*gap+gap/2;
+    // Income bar
+    if(d.income>0){
+      const y=toY(d.income), h=zeroY-y;
+      ctx.fillStyle='rgba(0,201,122,0.75)';
+      ctx.beginPath(); ctx.roundRect?ctx.roundRect(cx-barW-1,y,barW,h,[3,3,0,0]):ctx.rect(cx-barW-1,y,barW,h); ctx.fill();
     }
-    ctx.fill();
+    // Outgo bar
+    if(d.outgo<0){
+      const h=toY(d.outgo)-zeroY;
+      ctx.fillStyle='rgba(255,64,96,0.75)';
+      ctx.beginPath(); ctx.roundRect?ctx.roundRect(cx+1,zeroY,barW,h,[0,0,3,3]):ctx.rect(cx+1,zeroY,barW,h); ctx.fill();
+    }
   });
 
-  // Y axis labels
-  ctx.fillStyle = '#5a5a80';
-  ctx.font = '10px Segoe UI,system-ui,sans-serif';
-  ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const v = minVal + range*(1-i/4);
-    ctx.fillText('€'+Math.round(v), pad.left-6, pad.top+(i/4)*chartH+3);
-  }
+  // Y labels
+  ctx.fillStyle='#5a5a80'; ctx.font='10px Segoe UI,system-ui,sans-serif'; ctx.textAlign='right';
+  for(let i=0;i<=4;i++){const v=minV+range*(1-i/4);ctx.fillText('€'+Math.round(v),pad.left-5,pad.top+(i/4)*cH+3);}
 
-  // X axis labels
-  const monthNames = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
-  ctx.textAlign = 'center';
-  const maxLbls = Math.floor(chartW/38);
-  const step = Math.max(1, Math.ceil(n/maxLbls));
-  data.forEach((d, i) => {
-    if (i % step !== 0 && i !== n-1) return;
-    const [y, m] = d.month.split('-');
-    const lbl = monthNames[parseInt(m)-1] + (n > 12 ? ' '+y.slice(2) : '');
-    ctx.fillStyle = '#5a5a80';
-    ctx.fillText(lbl, pad.left + i*gap + gap/2, H-8);
+  // X labels
+  ctx.textAlign='center';
+  const step=Math.max(1,Math.ceil(n/Math.floor(cW/38)));
+  data.forEach((d,i)=>{
+    if(i%step!==0&&i!==n-1)return;
+    const[y,m]=d.month.split('-');
+    ctx.fillStyle='#5a5a80';
+    ctx.fillText(monthNames[parseInt(m)-1]+(n>12?' '+y.slice(2):''),pad.left+i*gap+gap/2,H-8);
   });
 
-  // Store data for tooltip
-  canvas._chartData = { data, pad, gap, barW, zeroY, chartH, W, H };
-  attachBudgetChartTooltip(canvas);
+  // Tooltip
+  if(canvas._ttListener) canvas.removeEventListener('mousemove',canvas._ttListener);
+  if(canvas._ttLeave) canvas.removeEventListener('mouseleave',canvas._ttLeave);
+  canvas._chartDataBar={data,pad,gap,n};
+  canvas._ttListener=function(e){
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left;
+    const{data,pad,gap}=canvas._chartDataBar;
+    const idx=Math.floor((mx-pad.left)/gap);
+    if(idx<0||idx>=data.length){hideBudgetTooltip();return;}
+    const d=data[idx];const[y,m]=d.month.split('-');
+    const mNames=['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+    const dCol=d.delta>=0?'var(--green)':'var(--red)';
+    showBudgetTooltip(e,`<div style="font-weight:700;color:var(--text);margin-bottom:4px">${mNames[parseInt(m)-1]} ${y}</div>
+      <div style="color:var(--green)">+€${d.income.toFixed(2)}</div>
+      <div style="color:var(--red)">−€${Math.abs(d.outgo).toFixed(2)}</div>
+      <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">Netto: <strong style="color:${dCol}">${d.delta>=0?'+':''}€${d.delta.toFixed(2)}</strong></div>`);
+  };
+  canvas._ttLeave=hideBudgetTooltip;
+  canvas.addEventListener('mousemove',canvas._ttListener);
+  canvas.addEventListener('mouseleave',canvas._ttLeave);
 }
 
-function attachBudgetChartTooltip(canvas) {
-  // Remove old listener if any
-  if (canvas._ttListener) canvas.removeEventListener('mousemove', canvas._ttListener);
-  if (canvas._ttLeave)    canvas.removeEventListener('mouseleave', canvas._ttLeave);
-
-  const monthNames = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-
-  canvas._ttListener = function(e) {
-    const cd = canvas._chartData;
-    if (!cd) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left);
-    const { data, pad, gap, barW } = cd;
-    let tooltip = document.getElementById('budget-bar-tooltip');
-    if (!tooltip) {
-      tooltip = document.createElement('div');
-      tooltip.id = 'budget-bar-tooltip';
-      tooltip.style.cssText = 'position:fixed;background:var(--surface3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:12px;pointer-events:none;z-index:500;display:none;';
-      document.body.appendChild(tooltip);
-    }
-    const idx = Math.floor((mx - pad.left) / gap);
-    if (idx < 0 || idx >= data.length) { tooltip.style.display='none'; return; }
-    const d = data[idx];
-    const [y, m] = d.month.split('-');
-    const sign = d.delta >= 0 ? '+' : '';
-    const col  = d.delta >= 0 ? 'var(--green)' : 'var(--red)';
-    const cumCol = d.cumulative >= 0 ? 'var(--green)' : 'var(--red)';
-    tooltip.innerHTML = `<div style="font-weight:700;color:var(--text);margin-bottom:4px">${monthNames[parseInt(m)-1]} ${y}</div>
-      <div>Mese: <strong style="color:${col}">${sign}€${Math.abs(d.delta).toFixed(2)}</strong></div>
-      <div>Totale: <strong style="color:${cumCol}">${d.cumulative>=0?'+':''}€${d.cumulative.toFixed(2)}</strong></div>`;
-    tooltip.style.display = 'block';
-    tooltip.style.left = (e.clientX + 14) + 'px';
-    tooltip.style.top  = (e.clientY - 10) + 'px';
-  };
-  canvas._ttLeave = () => {
-    const t = document.getElementById('budget-bar-tooltip');
-    if (t) t.style.display = 'none';
-  };
-  canvas.addEventListener('mousemove', canvas._ttListener);
-  canvas.addEventListener('mouseleave', canvas._ttLeave);
+function showBudgetTooltip(e, html) {
+  let t=document.getElementById('budget-chart-tooltip');
+  if(!t){t=document.createElement('div');t.id='budget-chart-tooltip';
+    t.style.cssText='position:fixed;background:var(--surface3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:12px;pointer-events:none;z-index:500;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,0.4)';
+    document.body.appendChild(t);}
+  t.innerHTML=html; t.style.display='block';
+  t.style.left=(e.clientX+14)+'px'; t.style.top=(e.clientY-10)+'px';
 }
+function hideBudgetTooltip(){const t=document.getElementById('budget-chart-tooltip');if(t)t.style.display='none';}
+
 
 
 // --- BUDGET ---
@@ -2366,10 +2435,9 @@ function renderBudget() {
   const empty = document.getElementById('budget-empty');
   if (!tbody) return;
 
-  // Filter by month
-  const filtered = budgetMonthFilter
-    ? budgetEntries.filter(e => e.date.slice(0,7) === budgetMonthFilter)
-    : budgetEntries;
+  // Filter by year/month selects
+  populateBudgetYearSelect();
+  const filtered = getBudgetFilteredEntries();
 
   const sorted = [...filtered].sort((a, b) => {
     if (budgetSortCol === 'date')   return a.date.localeCompare(b.date) * budgetSortDir;
@@ -2421,7 +2489,7 @@ function renderBudget() {
   if (subEl) subEl.textContent = filtered.length + ' moviment' + (filtered.length === 1 ? 'o' : 'i');
   }
   drawBudgetLineChart();
-  updateBudgetMonthLabel();
+  drawBudgetBarChart();
 }
 
 function updateBudgetStat() {
@@ -2660,7 +2728,7 @@ function toggleGroupCollapse(key, event) {
 // --- SORT ---
 let sortBy  = 'code';
 let sortDir = { code: 1, price: -1, rarity: -1, name: 1, set: 1 };
-let groupRarityDir = -1; // -1=SCR first (default), 1=SR first — only changes via Rarità sort btn (asc)
+let groupRarityDir = 1; // 1=SR first (default), -1=SCR first — only changes via Rarità sort btn
 let groupBy = 'rarity'; // 'rarity' | 'set'
 function setGroupBy(by, btn) {
   groupBy = by;
