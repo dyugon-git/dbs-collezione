@@ -1116,11 +1116,13 @@
     Tutti i giochi
   </button>
   <div class="nav-tabs" id="nav-tabs-desktop">
+    <button class="nav-tab" onclick="switchPage('home',this)">Home</button>
     <button class="nav-tab active" onclick="switchPage('collection',this)">Collezione</button>
     <button class="nav-tab" onclick="switchPage('stats',this)">Statistiche</button>
     <button class="nav-tab" onclick="switchPage('budget',this)">Budget</button>
   </div>
   <select class="nav-select" id="nav-select-mobile" onchange="switchPageMobile(this.value)">
+    <option value="home">Home</option>
     <option value="collection">Collezione</option>
     <option value="stats">Statistiche</option>
     <option value="budget">Budget</option>
@@ -2741,11 +2743,9 @@ function selectGame(game) {
   // Update header logo area with game name
   const backBtn = document.getElementById('game-back-btn');
   backBtn.querySelector('svg').nextSibling.textContent = ' ' + (GAME_ICONS[game]||'') + ' ' + game;
-  // Render filtered
-  renderGrid();
-  renderDetail();
-  // Activate Collezione tab
-  const collTab = document.querySelector('#nav-tabs-desktop .nav-tab');
+  // Activate Collezione tab and render
+  const allTabs = document.querySelectorAll('#nav-tabs-desktop .nav-tab');
+  const collTab = [...allTabs].find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes("'collection'"));
   if (collTab) switchPage('collection', collTab);
   const navSel = document.getElementById('nav-select-mobile');
   if (navSel) navSel.value = 'collection';
@@ -2753,15 +2753,15 @@ function selectGame(game) {
 
 function backToGameHome() {
   currentGame = null;
-  // Hide main UI, show home
-  document.getElementById('game-home').classList.add('visible');
-  document.querySelector('.toolbar').style.display = 'none';
-  document.querySelector('.main').style.display = 'none';
-  document.getElementById('stats-page').classList.remove('visible');
-  document.getElementById('budget-page').style.display = 'none';
   document.getElementById('game-back-btn').classList.remove('visible');
   document.getElementById('card-detail-page').style.display = 'none';
-  renderGameHome();
+  // Navigate to Home tab
+  const homeBtn = document.querySelector('#nav-tabs-desktop .nav-tab');
+  switchPage('home', homeBtn);
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  if (homeBtn) homeBtn.classList.add('active');
+  const navSel = document.getElementById('nav-select-mobile');
+  if (navSel) navSel.value = 'home';
 }
 
 // --- PAGE SWITCH ---
@@ -2781,13 +2781,18 @@ function switchPage(page, btn) {
   currentPage = page;
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  const isStats  = page === 'stats';
-  const isBudget = page === 'budget';
+  const isHome       = page === 'home';
   const isCollection = page === 'collection';
-  document.getElementById('stats-page').classList.toggle('visible', isStats);
-  document.getElementById('budget-page').style.display  = isBudget ? 'block' : 'none';
+  const isStats      = page === 'stats';
+  const isBudget     = page === 'budget';
+
+  document.getElementById('game-home').classList.toggle('visible', isHome);
   document.querySelector('.toolbar').style.display = isCollection ? '' : 'none';
   document.querySelector('.main').style.display    = isCollection ? '' : 'none';
+  document.getElementById('stats-page').classList.toggle('visible', isStats);
+  document.getElementById('budget-page').style.display = isBudget ? 'block' : 'none';
+
+  if (isHome)   renderGameHome();
   if (isStats)  renderStats();
   if (isBudget) renderBudget();
 }
@@ -3030,7 +3035,8 @@ function setChartOpt(side, key, val, btn) {
 }
 
 function populateSetFilter(selectId, side) {
-  const sets = [...new Set(cards.map(c=>c.set).filter(Boolean))].sort();
+  const filterPool = currentGame ? cards.filter(c=>(c.game||'Dragon Ball')===currentGame) : cards;
+  const sets = [...new Set(filterPool.map(c=>c.set).filter(Boolean))].sort();
   const sel = document.getElementById(selectId);
   const cur = sel.value;
   sel.innerHTML = '<option value="">Tutte le espansioni</option>' +
@@ -3038,11 +3044,12 @@ function populateSetFilter(selectId, side) {
 }
 
 function renderStats() {
-  const owned   = cards.filter(c => c.status === 'have');
-  const missing = cards.filter(c => c.status === 'missing');
+  const gameCards = currentGame ? cards.filter(c => (c.game||'Dragon Ball') === currentGame) : cards;
+  const owned   = gameCards.filter(c => c.status === 'have');
+  const missing = gameCards.filter(c => c.status === 'missing');
   const totalVal = owned.reduce((s,c) => s + parseFloat(c.price||0), 0);
   const missingVal = missing.reduce((s,c) => s + parseFloat(c.price||0), 0);
-  const totalCards = cards.length;
+  const totalCards = gameCards.length;
 
   // KPIs
   document.getElementById('kpi-row').innerHTML = [
@@ -3061,6 +3068,9 @@ function renderStats() {
   // Populate set filters and show/hide based on group='rarity' + we want per-set drill-down
   populateSetFilter('left-filter-set', 'left');
   populateSetFilter('right-filter-set', 'right');
+  // Stats title reflects current game
+  const statsTitle = document.querySelector('.stats-page .stats-kpi-row');
+  // (no extra UI change needed — filtering is implicit)
 
   renderChart('left');
   renderChart('right');
@@ -3078,7 +3088,8 @@ function renderChart(side) {
   const setFilter = showFilter ? filterSet.value : '';
 
   // Select base pool
-  let pool = cards.filter(c => c.status === (opts.mode === 'owned' ? 'have' : 'missing'));
+  const statsPool = currentGame ? cards.filter(c => (c.game||'Dragon Ball') === currentGame) : cards;
+  let pool = statsPool.filter(c => c.status === (opts.mode === 'owned' ? 'have' : 'missing'));
   if (setFilter) pool = pool.filter(c => c.set === setFilter);
 
   // Group
@@ -3252,11 +3263,12 @@ loadBudget();
 initGistBtnState();
 setSyncIndicator('saved', 'Salvato');
 updateBudgetStat();
-// Start on game home page
-document.getElementById('game-home').classList.add('visible');
-document.querySelector('.toolbar').style.display = 'none';
-document.querySelector('.main').style.display = 'none';
-renderGameHome();
+// Start on Home tab
+const initHomeBtn = document.querySelector('#nav-tabs-desktop .nav-tab');
+switchPage('home', initHomeBtn);
+if (initHomeBtn) initHomeBtn.classList.add('active');
+const initNavSel = document.getElementById('nav-select-mobile');
+if (initNavSel) initNavSel.value = 'home';
 
 // Auto-pull dal Gist se token e ID sono già salvati
 (async function autoSync() {
@@ -3307,10 +3319,9 @@ renderGameHome();
       renderGrid();
       renderDetail();
     } else {
-      document.getElementById('game-home').classList.add('visible');
-      document.querySelector('.toolbar').style.display = 'none';
-      document.querySelector('.main').style.display = 'none';
-      renderGameHome();
+      const hBtn = document.querySelector('#nav-tabs-desktop .nav-tab');
+      switchPage('home', hBtn);
+      if (hBtn) { document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); hBtn.classList.add('active'); }
     }
     if (lbl) lbl.textContent = '✓ Gist Sync';
     setSyncIndicator('saved', 'Salvato');
