@@ -1855,8 +1855,11 @@ function openCardPage() {
 
 function closeCardPage() {
   document.getElementById('card-detail-page').style.display = 'none';
-  document.querySelector('.toolbar').style.display = '';
-  document.querySelector('.main').style.display = '';
+  // Only restore toolbar/main if we're in collection view (not home/stats/budget)
+  if (currentGame !== null) {
+    document.querySelector('.toolbar').style.display = '';
+    document.querySelector('.main').style.display = '';
+  }
 }
 
 function openMobileDetail() { openCardPage(); }
@@ -2734,16 +2737,11 @@ function renderGameHome() {
 
 function selectGame(game) {
   currentGame = game;
-  // Show main app UI
-  document.getElementById('game-home').classList.remove('visible');
-  document.querySelector('.toolbar').style.display = '';
-  document.querySelector('.main').style.display = '';
-  // Show back button, update nav
-  document.getElementById('game-back-btn').classList.add('visible');
-  // Update header logo area with game name
+  // Show back button
   const backBtn = document.getElementById('game-back-btn');
+  backBtn.classList.add('visible');
   backBtn.querySelector('svg').nextSibling.textContent = ' ' + (GAME_ICONS[game]||'') + ' ' + game;
-  // Activate Collezione tab and render
+  // Switch to collection tab (currentGame is already set so getFiltered will filter)
   const allTabs = document.querySelectorAll('#nav-tabs-desktop .nav-tab');
   const collTab = [...allTabs].find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes("'collection'"));
   if (collTab) switchPage('collection', collTab);
@@ -3264,11 +3262,20 @@ initGistBtnState();
 setSyncIndicator('saved', 'Salvato');
 updateBudgetStat();
 // Start on Home tab
-const initHomeBtn = document.querySelector('#nav-tabs-desktop .nav-tab');
-switchPage('home', initHomeBtn);
-if (initHomeBtn) initHomeBtn.classList.add('active');
-const initNavSel = document.getElementById('nav-select-mobile');
-if (initNavSel) initNavSel.value = 'home';
+(function() {
+  const initHomeBtn = document.querySelector('#nav-tabs-desktop .nav-tab');
+  if (initHomeBtn) {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    initHomeBtn.classList.add('active');
+  }
+  // Manually set home state (avoid closeCardPage side effects)
+  document.getElementById('game-home').classList.add('visible');
+  document.querySelector('.toolbar').style.display = 'none';
+  document.querySelector('.main').style.display = 'none';
+  const initNavSel = document.getElementById('nav-select-mobile');
+  if (initNavSel) initNavSel.value = 'home';
+  renderGameHome();
+})();
 
 // Auto-pull dal Gist se token e ID sono già salvati
 (async function autoSync() {
@@ -3319,9 +3326,7 @@ if (initNavSel) initNavSel.value = 'home';
       renderGrid();
       renderDetail();
     } else {
-      const hBtn = document.querySelector('#nav-tabs-desktop .nav-tab');
-      switchPage('home', hBtn);
-      if (hBtn) { document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active')); hBtn.classList.add('active'); }
+      renderGameHome();
     }
     if (lbl) lbl.textContent = '✓ Gist Sync';
     setSyncIndicator('saved', 'Salvato');
