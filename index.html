@@ -1883,6 +1883,7 @@ function deleteCard(id) {
   if (selectedId === id) selectedId = null;
   renderGrid();
   renderDetail();
+  renderGameHome();
   toast('Carta eliminata');
 }
 
@@ -1938,6 +1939,7 @@ function saveCard() {
   closeModal();
   renderGrid();
   renderDetail();
+  renderGameHome();
 }
 
 // --- EXPORT / IMPORT ---
@@ -3247,11 +3249,14 @@ function drawPie(canvasId, legendId, dataObj, total, isValue) {
 // --- INIT ---
 loadCards();
 loadBudget();
-renderGrid();
-renderDetail();
 initGistBtnState();
 setSyncIndicator('saved', 'Salvato');
 updateBudgetStat();
+// Start on game home page
+document.getElementById('game-home').classList.add('visible');
+document.querySelector('.toolbar').style.display = 'none';
+document.querySelector('.main').style.display = 'none';
+renderGameHome();
 
 // Auto-pull dal Gist se token e ID sono già salvati
 (async function autoSync() {
@@ -3297,8 +3302,16 @@ updateBudgetStat();
     } catch {}
     isPulling = false;
     clearTimeout(autoPushTimer);
-    renderGrid();
-    renderDetail();
+    // Re-render: if a game is selected stay in it, else show home
+    if (currentGame) {
+      renderGrid();
+      renderDetail();
+    } else {
+      document.getElementById('game-home').classList.add('visible');
+      document.querySelector('.toolbar').style.display = 'none';
+      document.querySelector('.main').style.display = 'none';
+      renderGameHome();
+    }
     if (lbl) lbl.textContent = '✓ Gist Sync';
     setSyncIndicator('saved', 'Salvato');
     toast('Collezione aggiornata dal Gist', 'success');
