@@ -1872,7 +1872,10 @@ function buildDetailHTML(card) {
         <div class="detail-code">${esc(card.code)}</div>
         <div class="detail-name">${esc(card.name||'—')}</div>
         <div class="detail-set">${esc(card.set||'Set sconosciuto')}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
         <span class="rarity-badge-detail ${rKey}">${card.rarity||'Rarità non specificata'}</span>
+        <span style="font-size:18px;line-height:1">${GAME_ICONS[card.game||'Dragon Ball']||'🃏'}</span>
+        </div>
       </div>
       <div class="status-toggle">
         <button class="status-btn have${card.status==='have'?' active':''}"    onclick="quickStatus('${card.id}','have')">✅ Ho la carta</button>
