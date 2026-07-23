@@ -951,8 +951,7 @@
     50%      { opacity: 0.4; transform: scale(0.8); }
   }
   @media (max-width: 768px) {
-    .sync-label { display: none; }
-    .sync-indicator { padding: 6px; }
+    .sync-indicator { display: none !important; }
   }
 
 
@@ -994,16 +993,6 @@
     display: none;
   }
   .game-home.visible { display: block; }
-  .game-home-title {
-    font-size: 22px;
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
-  .game-home-sub {
-    font-size: 13px;
-    color: var(--text2);
-    margin-bottom: 28px;
-  }
   .game-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1176,7 +1165,7 @@
     <span>Valore: <strong id="stat-value" style="color:var(--accent2)">€0</strong></span>
     <span>Budget: <strong id="stat-budget" style="color:var(--green)">€0</strong></span>
   </div>
-  <div class="header-value-mobile"><span id="header-game-icon-mobile" style="font-size:16px;margin-right:2px;"></span><strong id="stat-value-mobile" style="color:var(--accent2);display:block;line-height:1.2">€0</strong><strong id="stat-budget-mobile" style="color:var(--green);display:block;line-height:1.2;font-size:11px">€0</strong></div>
+  <div class="header-value-mobile"><strong id="stat-value-mobile" style="color:var(--accent2);display:block;line-height:1.2">€0</strong><strong id="stat-budget-mobile" style="color:var(--green);display:block;line-height:1.2;font-size:11px">€0</strong></div>
   <button class="btn btn-primary" onclick="openModal()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     <span class="btn-label-add">Aggiungi</span>
@@ -1201,6 +1190,7 @@
         <input type="file" accept=".json" onchange="importJSON(event); closeHeaderMenu()" style="display:none">
       </label>
       <div class="menu-divider"></div>
+      <div id="gist-sync-status-row" style="display:none;padding:8px 16px 4px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px"><span id="gist-menu-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0"></span><span id="gist-menu-status-label">Salvato</span></div>
       <button class="menu-item" id="gist-menu-item" onclick="openGistModal(); closeHeaderMenu()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
         <span id="gist-btn-label">Gist Sync</span>
@@ -1224,8 +1214,6 @@
 
 <!-- GAME HOME -->
 <div class="game-home" id="game-home">
-  <div class="game-home-title">La tua collezione</div>
-  <div class="game-home-sub">Seleziona un gioco per esplorare le carte</div>
   <!-- Global stats -->
   <div class="game-global-stats" id="game-global-stats"></div>
   <div class="game-grid" id="game-grid"></div>
@@ -1714,14 +1702,11 @@ function renderGrid() {
   const vm = document.getElementById('stat-value-mobile'); if(vm) vm.textContent = '€'+value.toFixed(2);
   // Update game icon in header
   const iconEl  = document.getElementById('header-game-icon');
-  const iconElM = document.getElementById('header-game-icon-mobile');
   if (currentGame) {
     const ico = GAME_ICONS[currentGame] || '🃏';
     if (iconEl)  { iconEl.textContent = ico; iconEl.style.display = 'inline'; }
-    if (iconElM) iconElM.textContent = ico;
   } else {
     if (iconEl)  { iconEl.textContent = ''; iconEl.style.display = 'none'; }
-    if (iconElM) iconElM.textContent = '';
   }
   document.getElementById('cnt-all').textContent      = total;
   document.getElementById('cnt-have').textContent     = have;
@@ -2087,12 +2072,24 @@ let isPulling = false; // flag per evitare auto-push durante un pull
 function setSyncIndicator(state, label) {
   const ind = document.getElementById('sync-indicator');
   const lbl = document.getElementById('sync-label');
-  if (!ind) return;
   const configured = localStorage.getItem(GIST_TOKEN_KEY) && localStorage.getItem(GIST_ID_KEY);
-  if (!configured) { ind.classList.add('off'); return; }
-  ind.classList.remove('off');
-  ind.className = 'sync-indicator ' + state;
-  if (lbl) lbl.textContent = label;
+  if (ind) {
+    if (!configured) { ind.classList.add('off'); }
+    else { ind.classList.remove('off'); ind.className = 'sync-indicator ' + state; }
+    if (lbl) lbl.textContent = label;
+  }
+  // Also update dropdown status (always visible on mobile)
+  const dot = document.getElementById('gist-menu-dot');
+  const slbl = document.getElementById('gist-menu-status-label');
+  const row = document.getElementById('gist-sync-status-row');
+  const colors = { saved:'var(--green)', pending:'var(--accent2)', syncing:'var(--blue2)', error:'var(--red)' };
+  if (configured) {
+    if (row) row.style.display = 'flex';
+    if (dot) dot.style.background = colors[state] || 'var(--text3)';
+    if (slbl) slbl.textContent = label;
+  } else {
+    if (row) row.style.display = 'none';
+  }
 }
 
 function scheduleAutoPush() {
