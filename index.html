@@ -1139,6 +1139,20 @@
     .game-global-stats { grid-template-columns: repeat(2, 1fr); }
   }
 
+
+  .fav-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.4;
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .fav-btn:hover  { opacity: 0.8; transform: scale(1.2); }
+  .fav-btn.fav-active { opacity: 1; }
+
 </style>
 </head>
 <body>
@@ -1233,6 +1247,7 @@
     <button class="filter-pill active" data-filter="all"     onclick="setFilter('all',this)">Tutte <span class="count-badge" id="cnt-all">0</span></button>
     <button class="filter-pill"        data-filter="have"    onclick="setFilter('have',this)">✅ <span class="count-badge" id="cnt-have">0</span></button>
     <button class="filter-pill"        data-filter="missing" onclick="setFilter('missing',this)">❌ <span class="count-badge" id="cnt-missing">0</span></button>
+    <button class="filter-pill"        data-filter="fav"     onclick="setFilter('fav',this)">❤️ <span class="count-badge" id="cnt-fav">0</span></button>
   </div>
   <div class="separator"></div>
   <select id="filter-rarity" onchange="setRaritySelect(this.value)" style="font-size:12px;padding:6px 10px;"><option value="">Tutte le rarità</option></select>
@@ -1676,6 +1691,7 @@ function getFiltered() {
     if (currentGame && (c.game || 'Dragon Ball') !== currentGame) return false;
     if (activeFilter === 'have'    && c.status !== 'have')    return false;
     if (activeFilter === 'missing' && c.status !== 'missing') return false;
+    if (activeFilter === 'fav'     && !c.fav)                    return false;
     if (activeRarity && c.rarity !== activeRarity) return false;
     if (setVal && c.set !== setVal) return false;
     if (q && !c.code.toLowerCase().includes(q) && !(c.name||'').toLowerCase().includes(q)) return false;
@@ -1711,6 +1727,7 @@ function renderGrid() {
   document.getElementById('cnt-all').textContent      = total;
   document.getElementById('cnt-have').textContent     = have;
   document.getElementById('cnt-missing').textContent  = missing;
+  const favCount = document.getElementById('cnt-fav'); if(favCount) favCount.textContent = gamePool.filter(c=>c.fav).length;
 
   // Populate rarity filter based on current game
   const rarityFilterSel = document.getElementById('filter-rarity');
@@ -1831,7 +1848,10 @@ function cardThumbHTML(c) {
     <div class="card-footer">
       <div class="footer-top">
         <span class="card-code">${esc(c.code)}</span>
-        <span class="status-emoji">${statusEmoji}</span>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <button class="fav-btn${c.fav?' fav-active':''}" onclick="event.stopPropagation();toggleFav('${c.id}')" title="${c.fav?'Rimuovi dai preferiti':'Aggiungi ai preferiti'}">${c.fav?'❤️':'🤍'}</button>
+          <span class="status-emoji">${statusEmoji}</span>
+        </div>
       </div>
       ${c.name  ? `<span class="card-name">${esc(c.name)}</span>`                      : ''}
       ${c.price ? `<span class="card-price">€${parseFloat(c.price).toFixed(2)}</span>` : ''}
@@ -1854,7 +1874,11 @@ function buildDetailHTML(card) {
     </div>
     <div class="detail-body">
       <div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
         <div class="detail-code">${esc(card.code)}</div>
+        <button class="fav-btn${card.fav?' fav-active':''}" onclick="toggleFav('${card.id}')" style="font-size:20px;background:none;border:none;cursor:pointer;padding:0;line-height:1;" title="${card.fav?'Rimuovi dai preferiti':'Aggiungi ai preferiti'}">${card.fav?'❤️':'🤍'}</button>
+      </div>
+      <div class="detail-code" style="display:none"></div>
         <div class="detail-name">${esc(card.name||'—')}</div>
         <div class="detail-set">${esc(card.set||'Set sconosciuto')}</div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
@@ -1939,6 +1963,17 @@ function closeCardPage() {
 
 function openMobileDetail() { openCardPage(); }
 function closeMobileDetail(e) { closeCardPage(); }
+
+function toggleFav(id) {
+  const card = cards.find(c => c.id === id);
+  if (!card) return;
+  card.fav = !card.fav;
+  saveCards();
+  renderGrid();
+  renderDetail();
+  // If card page is open on mobile, refresh it
+  if (document.getElementById('card-detail-page').style.display !== 'none') openCardPage();
+}
 
 // --- QUICK STATUS ---
 function quickStatus(id, status) {
