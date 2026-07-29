@@ -1215,7 +1215,6 @@ body.guest-mode .budget-delete-btn{display:none !important;}
   <div class="header-menu-wrap" id="header-menu-wrap">
     <button class="btn btn-sm" onclick="toggleHeaderMenu(event)" id="header-menu-btn" style="position:relative">
       <svg id="account-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span id="account-synced-badge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;background:var(--green);border-radius:50%;border:2px solid var(--surface);"></span>
     </button>
     <div class="header-menu-dropdown" id="header-menu-dropdown">
       <button class="menu-item" onclick="exportJSON(); closeHeaderMenu()">
@@ -1419,7 +1418,7 @@ body.guest-mode .budget-delete-btn{display:none !important;}
 
     <div class="gist-tabs">
       <button type="button" class="gist-tab-btn active" id="gist-tab-btn-mine" onclick="switchGistTab('mine')">La mia collezione</button>
-      <button type="button" class="gist-tab-btn" id="gist-tab-btn-friends" onclick="switchGistTab('friends')">👀 Amici</button>
+      <button type="button" class="gist-tab-btn" id="gist-tab-btn-friends" onclick="switchGistTab('friends')">Amici</button>
     </div>
 
     <div class="gist-tab-panel active" id="gist-tab-mine">
@@ -2246,14 +2245,8 @@ const GIST_FILENAME  = 'dbsfw_collection.json';
 const FRIENDS_FILENAME = 'dbsfw_friends.json';
 
 function markAccountSynced(synced) {
-  const gb2 = document.getElementById('gist-menu-item');
-  if (gb2) gb2.style.color = synced ? 'var(--green)' : '';
-  const lbl = document.getElementById('gist-btn-label');
-  if (lbl) lbl.textContent = synced ? '✓ Accounts' : 'Accounts';
   const icon = document.getElementById('account-icon');
   if (icon) icon.style.color = synced ? 'var(--green)' : '';
-  const badge = document.getElementById('account-synced-badge');
-  if (badge) badge.style.display = synced ? 'block' : 'none';
 }
 
 function openGistModal() {
@@ -2465,7 +2458,6 @@ function forgetGistCredentials() {
   localStorage.removeItem(GIST_ID_KEY);
   document.getElementById('gist-token').value = '';
   document.getElementById('gist-id').value    = '';
-  const gb = document.getElementById('gist-menu-item'); if(gb) gb.style.color='';
   markAccountSynced(false);
   updateGistIdHint();
   setGistStatus('Credenziali rimosse da questo browser.', 'info');
@@ -3756,12 +3748,12 @@ updateBudgetStat();
     } else {
       renderGameHome();
     }
-    if (lbl) lbl.textContent = '✓ Accounts';
+    if (lbl) lbl.textContent = 'Accounts';
     markAccountSynced(true);
     setSyncIndicator('saved', 'Salvato');
     toast('Collezione aggiornata dal Gist', 'success');
   } catch(err) {
-    if (lbl) lbl.textContent = '✓ Accounts';
+    if (lbl) lbl.textContent = 'Accounts';
     markAccountSynced(true);
     console.warn('Auto-sync Gist:', err.message);
   }
