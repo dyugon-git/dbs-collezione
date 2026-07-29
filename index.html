@@ -1213,8 +1213,9 @@ body.guest-mode .budget-delete-btn{display:none !important;}
   </span>
   <!-- Hamburger menu -->
   <div class="header-menu-wrap" id="header-menu-wrap">
-    <button class="btn btn-sm" onclick="toggleHeaderMenu(event)" id="header-menu-btn">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+    <button class="btn btn-sm" onclick="toggleHeaderMenu(event)" id="header-menu-btn" style="position:relative">
+      <svg id="account-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span id="account-synced-badge" style="display:none;position:absolute;top:2px;right:2px;width:8px;height:8px;background:var(--green);border-radius:50%;border:2px solid var(--surface);"></span>
     </button>
     <div class="header-menu-dropdown" id="header-menu-dropdown">
       <button class="menu-item" onclick="exportJSON(); closeHeaderMenu()">
@@ -1229,8 +1230,8 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <div class="menu-divider"></div>
       <div id="gist-sync-status-row" style="display:none;padding:8px 16px 4px;font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px"><span id="gist-menu-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0"></span><span id="gist-menu-status-label">Salvato</span></div>
       <button class="menu-item" id="gist-menu-item" onclick="openGistModal(); closeHeaderMenu()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-        <span id="gist-btn-label">Gist Sync</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span id="gist-btn-label">Accounts</span>
       </button>
     </div>
   </div>
@@ -1412,8 +1413,8 @@ body.guest-mode .budget-delete-btn{display:none !important;}
 <div class="modal-bg" id="gist-modal-bg" onclick="closeGistModalOnBg(event)">
   <div class="modal" style="max-width:520px">
     <h2 style="display:flex;align-items:center;gap:10px">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      GitHub Gist Sync
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Accounts
     </h2>
 
     <div class="gist-tabs">
@@ -2244,6 +2245,17 @@ const GIST_ID_KEY    = 'dbsfw_gist_id';
 const GIST_FILENAME  = 'dbsfw_collection.json';
 const FRIENDS_FILENAME = 'dbsfw_friends.json';
 
+function markAccountSynced(synced) {
+  const gb2 = document.getElementById('gist-menu-item');
+  if (gb2) gb2.style.color = synced ? 'var(--green)' : '';
+  const lbl = document.getElementById('gist-btn-label');
+  if (lbl) lbl.textContent = synced ? '✓ Accounts' : 'Accounts';
+  const icon = document.getElementById('account-icon');
+  if (icon) icon.style.color = synced ? 'var(--green)' : '';
+  const badge = document.getElementById('account-synced-badge');
+  if (badge) badge.style.display = synced ? 'block' : 'none';
+}
+
 function openGistModal() {
   document.getElementById('gist-token').value = localStorage.getItem(GIST_TOKEN_KEY) || '';
   document.getElementById('gist-id').value    = localStorage.getItem(GIST_ID_KEY)    || '';
@@ -2339,8 +2351,7 @@ async function gistPush() {
     document.getElementById('gist-id').value = newId;
     updateGistIdHint();
     setGistStatus(`✓ Salvato! ${cards.length} carte e ${loadFriends().length} amici sul Gist (${newId.slice(0,8)}…)`, 'ok');
-    const gb2 = document.getElementById('gist-menu-item'); if(gb2) gb2.style.color='var(--green)';
-    document.getElementById('gist-btn-label').textContent = '✓ Gist Sync';
+    markAccountSynced(true);
     clearTimeout(autoPushTimer);
     setSyncIndicator('saved', 'Salvato');
     toast('Collezione salvata sul Gist', 'success');
@@ -2419,8 +2430,7 @@ async function gistPull() {
     renderFriendsList();
     setGistStatus(`✓ Scaricate ${cards.length} carte, ${budgetEntries.length} movimenti e ${loadFriends().length} amici dal Gist.`, 'ok');
     setSyncIndicator('saved', 'Salvato');
-    const gb2 = document.getElementById('gist-menu-item'); if(gb2) gb2.style.color='var(--green)';
-    document.getElementById('gist-btn-label').textContent = '✓ Gist Sync';
+    markAccountSynced(true);
     toast('Collezione sincronizzata dal Gist', 'success');
   } catch(err) {
     setGistStatus('Errore: ' + err.message, 'err');
@@ -2433,8 +2443,7 @@ async function gistPull() {
 function initGistBtnState() {
   const id = localStorage.getItem(GIST_ID_KEY);
   if (id) {
-    const gb2 = document.getElementById('gist-menu-item'); if(gb2) gb2.style.color='var(--green)';
-    document.getElementById('gist-btn-label').textContent = '✓ Gist Sync';
+    markAccountSynced(true);
   }
 }
 
@@ -2457,7 +2466,7 @@ function forgetGistCredentials() {
   document.getElementById('gist-token').value = '';
   document.getElementById('gist-id').value    = '';
   const gb = document.getElementById('gist-menu-item'); if(gb) gb.style.color='';
-  const lbl2 = document.getElementById('gist-btn-label'); if(lbl2) lbl2.textContent = 'Gist Sync';
+  markAccountSynced(false);
   updateGistIdHint();
   setGistStatus('Credenziali rimosse da questo browser.', 'info');
 }
@@ -2539,7 +2548,7 @@ function renderFriendsList() {
         <div class="friend-name">${esc(f.name)}</div>
         <div class="friend-gist">${esc(f.gistId)}</div>
       </div>
-      <button type="button" class="btn btn-sm" onclick="viewFriendCollection('${f.id}')" style="color:var(--blue2);border-color:var(--blue2)">👀 Visualizza</button>
+      <button type="button" class="btn btn-sm" onclick="viewFriendCollection('${f.id}')" title="Visualizza collezione" style="color:var(--blue2);border-color:var(--blue2)">👀</button>
       <button type="button" class="btn btn-sm" onclick="removeFriend('${f.id}')" style="color:var(--red);border-color:var(--red)">✕</button>
     </div>
   `).join('');
@@ -3747,11 +3756,13 @@ updateBudgetStat();
     } else {
       renderGameHome();
     }
-    if (lbl) lbl.textContent = '✓ Gist Sync';
+    if (lbl) lbl.textContent = '✓ Accounts';
+    markAccountSynced(true);
     setSyncIndicator('saved', 'Salvato');
     toast('Collezione aggiornata dal Gist', 'success');
   } catch(err) {
-    if (lbl) lbl.textContent = '✓ Gist Sync';
+    if (lbl) lbl.textContent = '✓ Accounts';
+    markAccountSynced(true);
     console.warn('Auto-sync Gist:', err.message);
   }
 })();
