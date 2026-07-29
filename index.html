@@ -1474,7 +1474,8 @@ body.guest-mode .budget-delete-btn{display:none !important;}
     <div class="gist-tab-panel" id="gist-tab-friends">
 
       <div style="font-size:13px;color:var(--text2);line-height:1.6;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">
-        Salva il <strong style="color:var(--text)">Gist ID</strong> di un amico per visualizzare la sua collezione in <strong style="color:var(--text)">sola lettura</strong>, senza modificarla e senza toccare la tua.
+        Salva il <strong style="color:var(--text)">Gist ID</strong> di un amico per visualizzare la sua collezione in <strong style="color:var(--text)">sola lettura</strong>, senza modificarla e senza toccare la tua.<br>
+        La tua lista di amici viene salvata anche sul tuo Gist personale, così la ritrovi su ogni dispositivo.
       </div>
 
       <div class="form-field">
@@ -2194,6 +2195,7 @@ function setSyncIndicator(state, label) {
 
 function scheduleAutoPush() {
   if (isPulling) return; // non auto-pushare durante un pull in corso
+  if (guestMode) return; // non auto-pushare mentre si visualizza la collezione di un amico
   const token = localStorage.getItem(GIST_TOKEN_KEY);
   const id    = localStorage.getItem(GIST_ID_KEY);
   if (!token || !id) return; // gist non configurato, nessun auto-push
@@ -2217,7 +2219,8 @@ async function silentGistPush() {
     public: false,
     files: {
       [GIST_FILENAME]:  { content: JSON.stringify(cards, null, 2) },
-      [BUDGET_FILENAME]: { content: JSON.stringify(budgetEntries, null, 2) }
+      [BUDGET_FILENAME]: { content: JSON.stringify(budgetEntries, null, 2) },
+      [FRIENDS_FILENAME]: { content: JSON.stringify(loadFriends(), null, 2) }
     }
   };
 
@@ -2239,6 +2242,7 @@ async function silentGistPush() {
 const GIST_TOKEN_KEY = 'dbsfw_gist_token';
 const GIST_ID_KEY    = 'dbsfw_gist_id';
 const GIST_FILENAME  = 'dbsfw_collection.json';
+const FRIENDS_FILENAME = 'dbsfw_friends.json';
 
 function openGistModal() {
   document.getElementById('gist-token').value = localStorage.getItem(GIST_TOKEN_KEY) || '';
@@ -2305,7 +2309,8 @@ async function gistPush() {
     public: false,
     files: {
       [GIST_FILENAME]:  { content: JSON.stringify(cards, null, 2) },
-      [BUDGET_FILENAME]: { content: JSON.stringify(budgetEntries, null, 2) }
+      [BUDGET_FILENAME]: { content: JSON.stringify(budgetEntries, null, 2) },
+      [FRIENDS_FILENAME]: { content: JSON.stringify(loadFriends(), null, 2) }
     }
   };
 
@@ -2333,7 +2338,7 @@ async function gistPush() {
     localStorage.setItem(GIST_ID_KEY, newId);
     document.getElementById('gist-id').value = newId;
     updateGistIdHint();
-    setGistStatus(`✓ Salvato! ${cards.length} carte sul Gist (${newId.slice(0,8)}…)`, 'ok');
+    setGistStatus(`✓ Salvato! ${cards.length} carte e ${loadFriends().length} amici sul Gist (${newId.slice(0,8)}…)`, 'ok');
     const gb2 = document.getElementById('gist-menu-item'); if(gb2) gb2.style.color='var(--green)';
     document.getElementById('gist-btn-label').textContent = '✓ Gist Sync';
     clearTimeout(autoPushTimer);
@@ -2380,6 +2385,15 @@ async function gistPull() {
       try { pulledBudget = JSON.parse(bc); } catch {}
     }
 
+    // Pull friends list if present
+    let pulledFriends = null;
+    const friendsFile = data.files[FRIENDS_FILENAME];
+    if (friendsFile) {
+      let fc = friendsFile.content;
+      if (friendsFile.truncated) { const r = await fetch(friendsFile.raw_url); fc = await r.text(); }
+      try { const pf = JSON.parse(fc); if (Array.isArray(pf)) pulledFriends = pf; } catch {}
+    }
+
     const msg = pulledBudget.length
       ? `Scaricare ${parsed.length} carte e ${pulledBudget.length} movimenti budget dal Gist?`
       : `Scaricare ${parsed.length} carte dal Gist?`;
@@ -2394,6 +2408,7 @@ async function gistPull() {
     budgetEntries = pulledBudget;
     saveCards();
     saveBudget();
+    if (pulledFriends) saveFriends(pulledFriends);
     isPulling = false;
     clearTimeout(autoPushTimer);
     selectedId = null;
@@ -2401,7 +2416,8 @@ async function gistPull() {
     renderDetail();
     renderBudget();
     updateBudgetStat();
-    setGistStatus(`✓ Scaricate ${cards.length} carte e ${budgetEntries.length} movimenti dal Gist.`, 'ok');
+    renderFriendsList();
+    setGistStatus(`✓ Scaricate ${cards.length} carte, ${budgetEntries.length} movimenti e ${loadFriends().length} amici dal Gist.`, 'ok');
     setSyncIndicator('saved', 'Salvato');
     const gb2 = document.getElementById('gist-menu-item'); if(gb2) gb2.style.color='var(--green)';
     document.getElementById('gist-btn-label').textContent = '✓ Gist Sync';
@@ -2495,7 +2511,8 @@ function addFriend() {
   saveFriends(list);
   nameInput.value = '';
   idInput.value = '';
-  setFriendsStatus('✓ Amico salvato.', 'ok');
+  scheduleAutoPush();
+  setFriendsStatus('✓ Amico salvato' + (guestMode ? ' (verrà sincronizzato quando torni alla tua collezione).' : ', sincronizzazione in corso…'), 'ok');
   renderFriendsList();
 }
 
@@ -2503,6 +2520,8 @@ function removeFriend(id) {
   if (!confirm('Rimuovere questo amico dalla lista?')) return;
   const list = loadFriends().filter(f => f.id !== id);
   saveFriends(list);
+  scheduleAutoPush();
+  setFriendsStatus('Amico rimosso' + (guestMode ? ' (verrà sincronizzato quando torni alla tua collezione).' : ', sincronizzazione in corso…'), 'info');
   renderFriendsList();
 }
 
@@ -2592,6 +2611,7 @@ function enterGuestMode(friendName, friendCards, friendBudget) {
   const navSel = document.getElementById('nav-select-mobile');
   if (navSel) navSel.value = 'home';
 
+  updateBudgetStat();
   toast('Stai visualizzando la collezione di ' + friendName, 'info');
 }
 
@@ -2615,6 +2635,8 @@ function exitGuestMode() {
   const navSel = document.getElementById('nav-select-mobile');
   if (navSel) navSel.value = 'home';
 
+  scheduleAutoPush(); // sincronizza eventuali modifiche alla lista amici fatte durante la visualizzazione ospite
+  updateBudgetStat();
   toast('Sei tornato/a alla tua collezione', 'success');
 }
 
@@ -3704,6 +3726,16 @@ updateBudgetStat();
         budgetEntries = JSON.parse(bc);
         saveBudget();
         updateBudgetStat();
+      }
+    } catch {}
+    // Also try to pull friends list
+    try {
+      const ff = data.files[FRIENDS_FILENAME];
+      if (ff) {
+        let fcontent = ff.content;
+        if (ff.truncated) { const r = await fetch(ff.raw_url); fcontent = await r.text(); }
+        const pf = JSON.parse(fcontent);
+        if (Array.isArray(pf)) saveFriends(pf);
       }
     } catch {}
     isPulling = false;
