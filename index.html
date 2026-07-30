@@ -2612,6 +2612,8 @@ function enterGuestMode(friendName, friendCards, friendBudget) {
   const navSel = document.getElementById('nav-select-mobile');
   if (navSel) navSel.value = 'home';
 
+  renderGrid();
+  renderDetail();
   updateBudgetStat();
   toast('Stai visualizzando la collezione di ' + friendName, 'info');
 }
@@ -2635,6 +2637,8 @@ function exitGuestMode() {
   const navSel = document.getElementById('nav-select-mobile');
   if (navSel) navSel.value = 'home';
 
+  renderGrid();   // aggiorna la barra "Totale/Ho/Mi manca/Valore" nella navbar (altrimenti resta quella dell'amico)
+  renderDetail();
   scheduleAutoPush(); // sincronizza eventuali modifiche alla lista amici fatte durante la visualizzazione ospite
   updateBudgetStat();
   toast('Sei tornato/a alla tua collezione', 'success');
