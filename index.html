@@ -2612,8 +2612,6 @@ function enterGuestMode(friendName, friendCards, friendBudget) {
   const navSel = document.getElementById('nav-select-mobile');
   if (navSel) navSel.value = 'home';
 
-  renderGrid();
-  renderDetail();
   renderBudget();
   updateBudgetStat();
   toast('Stai visualizzando la collezione di ' + friendName, 'info');
@@ -2638,8 +2636,6 @@ function exitGuestMode() {
   const navSel = document.getElementById('nav-select-mobile');
   if (navSel) navSel.value = 'home';
 
-  renderGrid();   // aggiorna la barra "Totale/Ho/Mi manca/Valore" nella navbar (altrimenti resta quella dell'amico)
-  renderDetail();
   renderBudget();
   scheduleAutoPush(); // sincronizza eventuali modifiche alla lista amici fatte durante la visualizzazione ospite
   updateBudgetStat();
@@ -3206,7 +3202,7 @@ function switchPage(page, btn) {
   document.getElementById('stats-page').classList.toggle('visible', isStats);
   document.getElementById('budget-page').style.display = isBudget ? 'block' : 'none';
 
-  if (isHome)   renderGameHome();
+  if (isHome)   { renderGameHome(); renderGrid(); renderDetail(); }
   if (isStats)  renderStats();
   if (isBudget) renderBudget();
 }
@@ -3691,6 +3687,8 @@ updateBudgetStat();
   const initNavSel = document.getElementById('nav-select-mobile');
   if (initNavSel) initNavSel.value = 'home';
   renderGameHome();
+  renderGrid();   // mostra i totali di tutti i giochi nella navbar finché nessun gioco è selezionato
+  renderDetail();
 })();
 
 // Auto-pull dal Gist se token e ID sono già salvati
