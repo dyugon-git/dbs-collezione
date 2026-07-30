@@ -2614,6 +2614,7 @@ function enterGuestMode(friendName, friendCards, friendBudget) {
 
   renderGrid();
   renderDetail();
+  renderBudget();
   updateBudgetStat();
   toast('Stai visualizzando la collezione di ' + friendName, 'info');
 }
@@ -2639,6 +2640,7 @@ function exitGuestMode() {
 
   renderGrid();   // aggiorna la barra "Totale/Ho/Mi manca/Valore" nella navbar (altrimenti resta quella dell'amico)
   renderDetail();
+  renderBudget();
   scheduleAutoPush(); // sincronizza eventuali modifiche alla lista amici fatte durante la visualizzazione ospite
   updateBudgetStat();
   toast('Sei tornato/a alla tua collezione', 'success');
@@ -3014,8 +3016,9 @@ function renderBudget() {
       </td>
     </tr>`;
   }).join('');
+  }
 
-  // Update KPIs
+  // Update KPIs (sempre, anche se non ci sono movimenti: azzera le card invece di lasciarle "vecchie")
   const total  = filtered.reduce((s, e) => s + e.amount, 0);
   const income = filtered.filter(e => e.amount > 0).reduce((s, e) => s + e.amount, 0);
   const outgo  = filtered.filter(e => e.amount < 0).reduce((s, e) => s + e.amount, 0);
@@ -3030,7 +3033,7 @@ function renderBudget() {
   if (outEl) outEl.textContent = '-€' + Math.abs(outgo).toFixed(2);
   const subEl = document.getElementById('budget-sub');
   if (subEl) subEl.textContent = filtered.length + ' moviment' + (filtered.length === 1 ? 'o' : 'i');
-  }
+
   drawBudgetLineChart();
   drawBudgetBarChart();
 }
