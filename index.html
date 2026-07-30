@@ -2620,8 +2620,7 @@ function exitGuestMode() {
   if (!guestMode || !guestBackup) return;
   cards = guestBackup.cards;
   budgetEntries = guestBackup.budgetEntries;
-  currentGame = guestBackup.currentGame;
-  const restorePage = guestBackup.currentPage || 'collection';
+  currentGame = null; // deseleziona il gioco per evitare confusione con quello visto dall'amico
   guestBackup = null;
   guestMode = false;
   guestFriendName = '';
