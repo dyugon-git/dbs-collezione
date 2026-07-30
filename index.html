@@ -2681,7 +2681,8 @@ function drawBudgetLineChart() {
   const canvas = document.getElementById('budget-line-chart');
   const emptyEl = document.getElementById('budget-line-empty');
   if (!canvas) return;
-  if (canvas.offsetParent === null) return; // pagina nascosta: verrà ridisegnato quando torna visibile
+  const pageEl = document.getElementById('budget-page');
+  if (pageEl && pageEl.style.display === 'none') return; // pagina nascosta: verrà ridisegnato quando torna visibile
 
   const months = [...new Set(budgetEntries.map(e=>e.date.slice(0,7)))].sort();
   if (!months.length) {
@@ -2781,7 +2782,8 @@ function drawBudgetBarChart() {
   const canvas = document.getElementById('budget-bar-chart');
   const emptyEl = document.getElementById('budget-bar-empty');
   if (!canvas) return;
-  if (canvas.offsetParent === null) return; // pagina nascosta: verrà ridisegnato quando torna visibile
+  const pageEl2 = document.getElementById('budget-page');
+  if (pageEl2 && pageEl2.style.display === 'none') return; // pagina nascosta: verrà ridisegnato quando torna visibile
 
   const months = [...new Set(budgetEntries.map(e=>e.date.slice(0,7)))].sort();
   if (!months.length) {
