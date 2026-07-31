@@ -1172,6 +1172,28 @@ body.guest-mode .budget-delete-btn{display:none !important;}
 .gist-tab-btn.active{color:var(--accent2);border-bottom-color:var(--accent2);}
 .gist-tab-panel{display:none;flex-direction:column;gap:12px;}
 .gist-tab-panel.active{display:flex;}
+
+/* --- ALBUM --- */
+.albums-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.albums-group-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin:22px 0 10px;display:flex;align-items:center;gap:6px;}
+.albums-group-title:first-child{margin-top:0;}
+.albums-grid-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+.album-card-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:border-color .15s;}
+.album-card-item:hover{border-color:var(--accent2);}
+.album-card-item .album-name{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.album-card-item .album-meta{font-size:11px;color:var(--text3);display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
+.album-card-item .album-progress-bar{height:5px;border-radius:3px;background:var(--surface3);margin-top:10px;overflow:hidden;}
+.album-card-item .album-progress-fill{height:100%;background:var(--accent2);}
+.album-delete-btn{color:var(--red);border-color:var(--red);flex-shrink:0;padding:3px 7px;}
+.album-detail-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+.album-page-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.album-page-grid{display:grid;gap:10px;}
+.album-slot{aspect-ratio:2/3;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
+.album-slot.empty{color:var(--text3);font-size:24px;border-style:dashed;}
+.album-slot img{width:100%;height:100%;object-fit:cover;display:block;}
+.album-slot.missing img{filter:grayscale(100%) brightness(0.6);}
+.album-slot.missing::after{content:'✕';position:absolute;bottom:3px;right:3px;font-size:10px;color:#fff;background:var(--red);border-radius:50%;width:15px;height:15px;display:flex;align-items:center;justify-content:center;}
+.album-slot.not-found{color:var(--red);font-size:10px;text-align:center;padding:4px;line-height:1.3;border-style:dashed;}
 </style>
 </head>
 <body>
@@ -1187,12 +1209,14 @@ body.guest-mode .budget-delete-btn{display:none !important;}
     <button class="nav-tab active" onclick="switchPage('collection',this)">Collezione</button>
     <button class="nav-tab" onclick="switchPage('stats',this)">Statistiche</button>
     <button class="nav-tab" onclick="switchPage('budget',this)">Budget</button>
+    <button class="nav-tab" onclick="switchPage('albums',this)">Album</button>
   </div>
   <select class="nav-select" id="nav-select-mobile" onchange="switchPageMobile(this.value)">
     <option value="home">Home</option>
     <option value="collection">Collezione</option>
     <option value="stats">Statistiche</option>
     <option value="budget">Budget</option>
+    <option value="albums">Album</option>
   </select>
   <span id="header-game-icon" style="font-size:20px;display:none;"></span>
   <div class="header-stats">
@@ -1607,6 +1631,103 @@ body.guest-mode .budget-delete-btn{display:none !important;}
     <div class="modal-actions">
       <button class="btn" onclick="closeBudgetModal()">Annulla</button>
       <button class="btn btn-primary" onclick="saveBudgetEntry()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ALBUMS PAGE -->
+<div class="stats-page" id="albums-page" style="display:none;">
+
+  <div id="albums-list-view">
+    <div class="albums-toolbar">
+      <div style="font-size:13px;color:var(--text2)" id="albums-context-label"></div>
+      <button class="btn btn-primary guest-hide" onclick="openAlbumModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuovo album
+      </button>
+    </div>
+    <div id="albums-container"></div>
+    <div id="albums-empty" style="display:none;flex-direction:column;align-items:center;text-align:center;color:var(--text3);padding:60px 20px;gap:8px">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+      <div style="font-size:14px;font-weight:600;color:var(--text2)">Nessun album</div>
+      <div style="font-size:12px;max-width:280px">Crea il tuo primo album virtuale per organizzare le carte come preferisci, anche quelle che non possiedi ancora.</div>
+    </div>
+  </div>
+
+  <div id="album-detail-view" style="display:none">
+    <div class="album-detail-header">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <button class="btn btn-sm" onclick="closeAlbumDetail()">← Album</button>
+        <h2 id="album-detail-title" style="margin:0;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></h2>
+      </div>
+      <div class="album-page-nav">
+        <button class="btn btn-sm" onclick="albumPagePrev()" id="album-prev-btn">‹</button>
+        <span id="album-page-indicator" style="font-size:13px;color:var(--text2);white-space:nowrap">Pagina 1 di 1</span>
+        <button class="btn btn-sm" onclick="albumPageNext()" id="album-next-btn">›</button>
+        <button class="btn btn-sm guest-hide" onclick="addAlbumPage()">+ Pagina</button>
+        <button class="btn btn-sm guest-hide" onclick="deleteCurrentAlbum()" style="color:var(--red);border-color:var(--red)" title="Elimina album">🗑</button>
+      </div>
+    </div>
+    <div class="album-page-grid" id="album-page-grid"></div>
+  </div>
+
+</div>
+
+<!-- ALBUM CREATE MODAL -->
+<div class="modal-bg" id="album-modal-bg" onclick="closeAlbumModalOnBg(event)">
+  <div class="modal" style="max-width:420px">
+    <h2>Nuovo album</h2>
+    <div class="form-field">
+      <label>Nome album *</label>
+      <input type="text" id="alb-name" placeholder="es. Le mie SCR preferite">
+    </div>
+    <div class="form-field">
+      <label>Gioco *</label>
+      <select id="alb-game">
+        <option value="Dragon Ball">Dragon Ball</option>
+        <option value="Digimon">Digimon</option>
+        <option value="Pokémon">Pokémon</option>
+        <option value="One Piece">One Piece</option>
+      </select>
+    </div>
+    <div class="form-row3">
+      <div class="form-field"><label>Righe *</label><input type="number" id="alb-rows" min="1" max="20" value="3"></div>
+      <div class="form-field"><label>Colonne *</label><input type="number" id="alb-cols" min="1" max="20" value="3"></div>
+      <div class="form-field"><label>Pagine *</label><input type="number" id="alb-pages" min="1" max="500" value="4"></div>
+    </div>
+    <span style="font-size:11px;color:var(--text3)">Righe e colonne non potranno essere modificate dopo la creazione. Potrai sempre aggiungere altre pagine in seguito.</span>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAlbumModal()">Annulla</button>
+      <button class="btn btn-primary" onclick="createAlbum()">Crea album</button>
+    </div>
+  </div>
+</div>
+
+<!-- ALBUM SLOT PICKER MODAL -->
+<div class="modal-bg" id="album-picker-modal-bg" onclick="closeAlbumPickerOnBg(event)">
+  <div class="modal" style="max-width:520px">
+    <h2>Scegli carta</h2>
+    <div class="form-field">
+      <input type="text" id="album-picker-search" placeholder="Cerca per codice o nome…" oninput="renderAlbumPickerResults()">
+    </div>
+    <div id="album-picker-results" style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAlbumPicker()" style="margin-right:auto">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ALBUM SLOT ACTIONS MODAL -->
+<div class="modal-bg" id="album-slot-actions-modal-bg" onclick="closeAlbumSlotActionsOnBg(event)">
+  <div class="modal" style="max-width:340px">
+    <h2 id="album-slot-actions-title" style="font-size:15px"></h2>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button type="button" class="btn" id="album-slot-view-btn" onclick="viewAlbumSlotCardDetail()">👁 Vedi dettaglio carta</button>
+      <button type="button" class="btn guest-hide" onclick="replaceAlbumSlotCard()">🔁 Sostituisci carta</button>
+      <button type="button" class="btn guest-hide" onclick="removeAlbumSlotCard()" style="color:var(--red);border-color:var(--red)">🗑 Rimuovi dallo slot</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAlbumSlotActions()" style="margin-right:auto">Chiudi</button>
     </div>
   </div>
 </div>
@@ -2220,7 +2341,8 @@ async function silentGistPush() {
     files: {
       [GIST_FILENAME]:  { content: JSON.stringify(cards, null, 2) },
       [BUDGET_FILENAME]: { content: JSON.stringify(budgetEntries, null, 2) },
-      [FRIENDS_FILENAME]: { content: JSON.stringify(loadFriends(), null, 2) }
+      [FRIENDS_FILENAME]: { content: JSON.stringify(loadFriends(), null, 2) },
+      [ALBUMS_FILENAME]: { content: JSON.stringify(albums, null, 2) }
     }
   };
 
@@ -2243,6 +2365,7 @@ const GIST_TOKEN_KEY = 'dbsfw_gist_token';
 const GIST_ID_KEY    = 'dbsfw_gist_id';
 const GIST_FILENAME  = 'dbsfw_collection.json';
 const FRIENDS_FILENAME = 'dbsfw_friends.json';
+const ALBUMS_FILENAME = 'dbsfw_albums.json';
 
 function markAccountSynced(synced) {
   const icon = document.getElementById('account-icon');
@@ -2315,7 +2438,8 @@ async function gistPush() {
     files: {
       [GIST_FILENAME]:  { content: JSON.stringify(cards, null, 2) },
       [BUDGET_FILENAME]: { content: JSON.stringify(budgetEntries, null, 2) },
-      [FRIENDS_FILENAME]: { content: JSON.stringify(loadFriends(), null, 2) }
+      [FRIENDS_FILENAME]: { content: JSON.stringify(loadFriends(), null, 2) },
+      [ALBUMS_FILENAME]: { content: JSON.stringify(albums, null, 2) }
     }
   };
 
@@ -2398,6 +2522,15 @@ async function gistPull() {
       try { const pf = JSON.parse(fc); if (Array.isArray(pf)) pulledFriends = pf; } catch {}
     }
 
+    // Pull albums if present
+    let pulledAlbums = null;
+    const albumsFile = data.files[ALBUMS_FILENAME];
+    if (albumsFile) {
+      let alc = albumsFile.content;
+      if (albumsFile.truncated) { const r = await fetch(albumsFile.raw_url); alc = await r.text(); }
+      try { const pa = JSON.parse(alc); if (Array.isArray(pa)) pulledAlbums = pa; } catch {}
+    }
+
     const msg = pulledBudget.length
       ? `Scaricare ${parsed.length} carte e ${pulledBudget.length} movimenti budget dal Gist?`
       : `Scaricare ${parsed.length} carte dal Gist?`;
@@ -2413,6 +2546,7 @@ async function gistPull() {
     saveCards();
     saveBudget();
     if (pulledFriends) saveFriends(pulledFriends);
+    if (pulledAlbums) { albums = pulledAlbums; saveAlbums(); }
     isPulling = false;
     clearTimeout(autoPushTimer);
     selectedId = null;
@@ -2421,6 +2555,8 @@ async function gistPull() {
     renderBudget();
     updateBudgetStat();
     renderFriendsList();
+    resetAlbumsToList();
+    renderAlbumsPage();
     setGistStatus(`✓ Scaricate ${cards.length} carte, ${budgetEntries.length} movimenti e ${loadFriends().length} amici dal Gist.`, 'ok');
     setSyncIndicator('saved', 'Salvato');
     markAccountSynced(true);
@@ -2572,7 +2708,15 @@ async function viewFriendCollection(friendId) {
       try { friendBudget = JSON.parse(bc); } catch {}
     }
 
-    enterGuestMode(friend.name, friendCards, friendBudget);
+    let friendAlbums = [];
+    const albumsFile = data.files[ALBUMS_FILENAME];
+    if (albumsFile) {
+      let ac = albumsFile.content;
+      if (albumsFile.truncated) { const r = await fetch(albumsFile.raw_url); ac = await r.text(); }
+      try { const pa = JSON.parse(ac); if (Array.isArray(pa)) friendAlbums = pa; } catch {}
+    }
+
+    enterGuestMode(friend.name, friendCards, friendBudget, friendAlbums);
     setFriendsStatus('', '');
     closeGistModal();
   } catch (err) {
@@ -2580,24 +2724,27 @@ async function viewFriendCollection(friendId) {
   }
 }
 
-function enterGuestMode(friendName, friendCards, friendBudget) {
+function enterGuestMode(friendName, friendCards, friendBudget, friendAlbums) {
   if (!guestMode) {
     // Backup della propria collezione, una sola volta
     guestBackup = {
       cards: cards,
       budgetEntries: budgetEntries,
+      albums: albums,
       currentGame: currentGame,
       currentPage: currentPage
     };
   }
   clearTimeout(autoPushTimer);
-  isPulling = true; // impedisce che saveCards/saveBudget triggerino auto-push
+  isPulling = true; // impedisce che saveCards/saveBudget/saveAlbums triggerino auto-push
   guestMode = true;
   guestFriendName = friendName;
   cards = friendCards || [];
   budgetEntries = friendBudget || [];
+  albums = friendAlbums || [];
   selectedId = null;
   currentGame = null;
+  resetAlbumsToList();
 
   document.body.classList.add('guest-mode');
   const banner = document.getElementById('guest-banner');
@@ -2613,6 +2760,7 @@ function enterGuestMode(friendName, friendCards, friendBudget) {
   if (navSel) navSel.value = 'home';
 
   renderBudget();
+  renderAlbumsPage();
   updateBudgetStat();
   toast('Stai visualizzando la collezione di ' + friendName, 'info');
 }
@@ -2621,11 +2769,13 @@ function exitGuestMode() {
   if (!guestMode || !guestBackup) return;
   cards = guestBackup.cards;
   budgetEntries = guestBackup.budgetEntries;
+  albums = guestBackup.albums;
   currentGame = null; // deseleziona il gioco per evitare confusione con quello visto dall'amico
   guestBackup = null;
   guestMode = false;
   guestFriendName = '';
   selectedId = null;
+  resetAlbumsToList();
 
   document.body.classList.remove('guest-mode');
   const banner = document.getElementById('guest-banner');
@@ -2637,6 +2787,7 @@ function exitGuestMode() {
   if (navSel) navSel.value = 'home';
 
   renderBudget();
+  renderAlbumsPage();
   scheduleAutoPush(); // sincronizza eventuali modifiche alla lista amici fatte durante la visualizzazione ospite
   updateBudgetStat();
   toast('Sei tornato/a alla tua collezione', 'success');
@@ -2903,6 +3054,307 @@ function loadBudget() {
   try { budgetEntries = JSON.parse(localStorage.getItem(BUDGET_KEY) || '[]'); } catch { budgetEntries = []; }
 }
 function saveBudget() { if (guestMode) return; localStorage.setItem(BUDGET_KEY, JSON.stringify(budgetEntries)); scheduleAutoPush(); }
+
+// --- ALBUM ---
+const ALBUMS_KEY = 'dbsfw_albums';
+let albums = [];
+let currentAlbumId = null;
+let currentAlbumPage = 0;
+let albumPickerSlotIndex = null;
+let albumSlotActionsIndex = null;
+
+function loadAlbums() {
+  try { albums = JSON.parse(localStorage.getItem(ALBUMS_KEY) || '[]'); } catch { albums = []; }
+}
+function saveAlbums() { if (guestMode) return; localStorage.setItem(ALBUMS_KEY, JSON.stringify(albums)); scheduleAutoPush(); }
+
+function albumProgress(album) {
+  const total = album.pages.reduce((s,p) => s + p.length, 0);
+  let filled = 0, owned = 0;
+  album.pages.forEach(p => p.forEach(cid => {
+    if (cid) {
+      filled++;
+      const c = cards.find(c2 => c2.id === cid);
+      if (c && c.status === 'have') owned++;
+    }
+  }));
+  return { total, filled, owned };
+}
+
+function resetAlbumsToList() {
+  currentAlbumId = null;
+  currentAlbumPage = 0;
+  const listView = document.getElementById('albums-list-view');
+  const detailView = document.getElementById('album-detail-view');
+  if (listView) listView.style.display = 'block';
+  if (detailView) detailView.style.display = 'none';
+}
+
+function renderAlbumsPage() {
+  const container = document.getElementById('albums-container');
+  const emptyEl = document.getElementById('albums-empty');
+  const ctxLabel = document.getElementById('albums-context-label');
+  if (!container) return;
+
+  const list = currentGame ? albums.filter(a => a.game === currentGame) : albums;
+
+  const renderCard = (a) => {
+    const { total, filled, owned } = albumProgress(a);
+    const pct = total ? Math.round(filled / total * 100) : 0;
+    return `<div class="album-card-item" onclick="openAlbum('${a.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div class="album-name">${esc(a.name)}</div>
+        <button type="button" class="btn btn-sm guest-hide album-delete-btn" onclick="deleteAlbum('${a.id}', event)" title="Elimina album">✕</button>
+      </div>
+      <div class="album-meta">
+        <span>${a.rows}×${a.cols}</span>
+        <span>${a.pages.length} pagin${a.pages.length===1?'a':'e'}</span>
+        <span>${filled}/${total} slot</span>
+        <span style="color:var(--green)">${owned} possedute</span>
+      </div>
+      <div class="album-progress-bar"><div class="album-progress-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  };
+
+  if (!list.length) {
+    container.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'flex';
+  } else {
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (currentGame) {
+      container.innerHTML = `<div class="albums-grid-list">${list.map(renderCard).join('')}</div>`;
+    } else {
+      const groups = {};
+      list.forEach(a => { (groups[a.game] = groups[a.game] || []).push(a); });
+      container.innerHTML = GAMES.filter(g => groups[g] && groups[g].length).map(g => `
+        <div class="albums-group-title">${GAME_ICONS[g]||''} ${esc(g)}</div>
+        <div class="albums-grid-list">${groups[g].map(renderCard).join('')}</div>
+      `).join('');
+    }
+  }
+
+  if (ctxLabel) ctxLabel.textContent = currentGame ? ('Album di ' + currentGame) : 'Tutti i tuoi album';
+}
+
+function openAlbumModal() {
+  document.getElementById('alb-name').value = '';
+  document.getElementById('alb-game').value = currentGame || 'Dragon Ball';
+  document.getElementById('alb-rows').value = 3;
+  document.getElementById('alb-cols').value = 3;
+  document.getElementById('alb-pages').value = 4;
+  document.getElementById('album-modal-bg').classList.add('open');
+}
+function closeAlbumModal() { document.getElementById('album-modal-bg').classList.remove('open'); }
+function closeAlbumModalOnBg(e) { if (e.target.id === 'album-modal-bg') closeAlbumModal(); }
+
+function createAlbum() {
+  if (guestMode) return;
+  const name  = document.getElementById('alb-name').value.trim();
+  const game  = document.getElementById('alb-game').value;
+  const rows  = parseInt(document.getElementById('alb-rows').value) || 0;
+  const cols  = parseInt(document.getElementById('alb-cols').value) || 0;
+  const pageCount = parseInt(document.getElementById('alb-pages').value) || 0;
+
+  if (!name)  { toast('Inserisci un nome per l\'album', 'error'); return; }
+  if (rows < 1 || rows > 20 || cols < 1 || cols > 20) { toast('Righe e colonne devono essere tra 1 e 20', 'error'); return; }
+  if (pageCount < 1 || pageCount > 500) { toast('Numero di pagine non valido', 'error'); return; }
+
+  const slotsPerPage = rows * cols;
+  const pages = Array.from({ length: pageCount }, () => Array(slotsPerPage).fill(null));
+  albums.push({ id: 'alb_' + Date.now(), name, game, rows, cols, pages });
+  saveAlbums();
+  closeAlbumModal();
+  renderAlbumsPage();
+  toast('Album creato', 'success');
+}
+
+function deleteAlbum(id, evt) {
+  if (guestMode) return;
+  if (evt) evt.stopPropagation();
+  if (!confirm('Eliminare questo album? L\'operazione non è reversibile.')) return;
+  albums = albums.filter(a => a.id !== id);
+  saveAlbums();
+  renderAlbumsPage();
+  toast('Album eliminato', 'info');
+}
+
+function deleteCurrentAlbum() {
+  if (guestMode || !currentAlbumId) return;
+  if (!confirm('Eliminare questo album? L\'operazione non è reversibile.')) return;
+  albums = albums.filter(a => a.id !== currentAlbumId);
+  saveAlbums();
+  resetAlbumsToList();
+  renderAlbumsPage();
+  toast('Album eliminato', 'info');
+}
+
+function openAlbum(id) {
+  currentAlbumId = id;
+  currentAlbumPage = 0;
+  const listView = document.getElementById('albums-list-view');
+  const detailView = document.getElementById('album-detail-view');
+  if (listView) listView.style.display = 'none';
+  if (detailView) detailView.style.display = 'block';
+  renderAlbumDetail();
+}
+
+function closeAlbumDetail() {
+  resetAlbumsToList();
+  renderAlbumsPage();
+}
+
+function renderAlbumDetail() {
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (!album) { closeAlbumDetail(); return; }
+  if (currentAlbumPage >= album.pages.length) currentAlbumPage = album.pages.length - 1;
+  if (currentAlbumPage < 0) currentAlbumPage = 0;
+
+  const titleEl = document.getElementById('album-detail-title');
+  if (titleEl) titleEl.textContent = album.name;
+  const indEl = document.getElementById('album-page-indicator');
+  if (indEl) indEl.textContent = `Pagina ${currentAlbumPage+1} di ${album.pages.length}`;
+  const prevBtn = document.getElementById('album-prev-btn');
+  if (prevBtn) prevBtn.disabled = currentAlbumPage === 0;
+  const nextBtn = document.getElementById('album-next-btn');
+  if (nextBtn) nextBtn.disabled = currentAlbumPage === album.pages.length - 1;
+
+  const grid = document.getElementById('album-page-grid');
+  if (!grid) return;
+  grid.style.gridTemplateColumns = `repeat(${album.cols}, 1fr)`;
+  const pageSlots = album.pages[currentAlbumPage] || [];
+  grid.innerHTML = pageSlots.map((cid, idx) => albumSlotHTML(cid, idx)).join('');
+}
+
+function albumSlotHTML(cardId, idx) {
+  if (!cardId) {
+    if (guestMode) return `<div class="album-slot empty" style="cursor:default"></div>`;
+    return `<div class="album-slot empty" onclick="openSlotPicker(${idx})">+</div>`;
+  }
+  const c = cards.find(c2 => c2.id === cardId);
+  if (!c) {
+    return `<div class="album-slot not-found" onclick="openAlbumSlotActions(${idx})">Carta<br>non trovata</div>`;
+  }
+  const srcs = getImgSrc(c.code);
+  const missCls = c.status === 'missing' ? ' missing' : '';
+  return `<div class="album-slot${missCls}" onclick="openAlbumSlotActions(${idx})">
+    ${srcs ? imgWithFallback(srcs, c.code) + `<div style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:9px;text-align:center;padding:4px;color:var(--text3)">${esc(c.code)}</div>` : `<span style="font-size:10px;text-align:center;padding:4px">${esc(c.code)}</span>`}
+  </div>`;
+}
+
+function albumPagePrev() {
+  if (currentAlbumPage > 0) { currentAlbumPage--; renderAlbumDetail(); }
+}
+function albumPageNext() {
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (album && currentAlbumPage < album.pages.length - 1) { currentAlbumPage++; renderAlbumDetail(); }
+}
+function addAlbumPage() {
+  if (guestMode) return;
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (!album) return;
+  album.pages.push(Array(album.rows * album.cols).fill(null));
+  saveAlbums();
+  currentAlbumPage = album.pages.length - 1;
+  renderAlbumDetail();
+  toast('Pagina aggiunta', 'success');
+}
+
+function openSlotPicker(idx) {
+  if (guestMode) return;
+  albumPickerSlotIndex = idx;
+  const search = document.getElementById('album-picker-search');
+  if (search) search.value = '';
+  renderAlbumPickerResults();
+  document.getElementById('album-picker-modal-bg').classList.add('open');
+}
+function closeAlbumPicker() {
+  document.getElementById('album-picker-modal-bg').classList.remove('open');
+  albumPickerSlotIndex = null;
+}
+function closeAlbumPickerOnBg(e) { if (e.target.id === 'album-picker-modal-bg') closeAlbumPicker(); }
+
+function renderAlbumPickerResults() {
+  const album = albums.find(a => a.id === currentAlbumId);
+  const container = document.getElementById('album-picker-results');
+  if (!album || !container) return;
+  const q = (document.getElementById('album-picker-search').value || '').toLowerCase().trim();
+  const pool = cards.filter(c => (c.game || 'Dragon Ball') === album.game);
+  const filtered = pool.filter(c => !q || c.code.toLowerCase().includes(q) || (c.name||'').toLowerCase().includes(q));
+
+  if (!filtered.length) {
+    container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px">Nessuna carta trovata</div>';
+    return;
+  }
+  container.innerHTML = filtered.slice(0, 150).map(c => `
+    <div class="friend-row" style="cursor:pointer" onclick="assignCardToSlot('${c.id}')">
+      <div style="flex:1;min-width:0">
+        <div class="friend-name">${esc(c.code)}${c.name?(' · '+esc(c.name)):''}</div>
+      </div>
+      <span>${c.status==='have'?'✅':'❌'}</span>
+    </div>
+  `).join('');
+}
+
+function assignCardToSlot(cardId) {
+  if (guestMode) return;
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (!album || albumPickerSlotIndex === null) return;
+  album.pages[currentAlbumPage][albumPickerSlotIndex] = cardId;
+  saveAlbums();
+  closeAlbumPicker();
+  renderAlbumDetail();
+}
+
+function openAlbumSlotActions(idx) {
+  albumSlotActionsIndex = idx;
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (!album) return;
+  const cid = album.pages[currentAlbumPage][idx];
+  const c = cards.find(c2 => c2.id === cid);
+  const titleEl = document.getElementById('album-slot-actions-title');
+  if (titleEl) titleEl.textContent = c ? (c.code + (c.name ? ' · ' + c.name : '')) : 'Carta non trovata';
+  const viewBtn = document.getElementById('album-slot-view-btn');
+  if (viewBtn) viewBtn.style.display = c ? '' : 'none';
+  document.getElementById('album-slot-actions-modal-bg').classList.add('open');
+}
+function closeAlbumSlotActions() {
+  document.getElementById('album-slot-actions-modal-bg').classList.remove('open');
+  albumSlotActionsIndex = null;
+}
+function closeAlbumSlotActionsOnBg(e) { if (e.target.id === 'album-slot-actions-modal-bg') closeAlbumSlotActions(); }
+
+function viewAlbumSlotCardDetail() {
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (!album) return;
+  const cid = album.pages[currentAlbumPage][albumSlotActionsIndex];
+  const c = cards.find(c2 => c2.id === cid);
+  closeAlbumSlotActions();
+  if (!c) return;
+  currentGame = c.game || 'Dragon Ball';
+  const collTab = [...document.querySelectorAll('#nav-tabs-desktop .nav-tab')].find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes("'collection'"));
+  if (collTab) switchPage('collection', collTab);
+  const navSel = document.getElementById('nav-select-mobile');
+  if (navSel) navSel.value = 'collection';
+  renderGrid();
+  selectCard(c.id);
+}
+
+function replaceAlbumSlotCard() {
+  if (guestMode) return;
+  const idx = albumSlotActionsIndex;
+  closeAlbumSlotActions();
+  openSlotPicker(idx);
+}
+
+function removeAlbumSlotCard() {
+  if (guestMode) return;
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (!album) return;
+  album.pages[currentAlbumPage][albumSlotActionsIndex] = null;
+  saveAlbums();
+  closeAlbumSlotActions();
+  renderAlbumDetail();
+}
 
 function setBudgetType(type, btn) {
   budgetType = type;
@@ -3199,16 +3651,19 @@ function switchPage(page, btn) {
   const isCollection = page === 'collection';
   const isStats      = page === 'stats';
   const isBudget     = page === 'budget';
+  const isAlbums     = page === 'albums';
 
   document.getElementById('game-home').classList.toggle('visible', isHome);
   document.querySelector('.toolbar').style.display = isCollection ? '' : 'none';
   document.querySelector('.main').style.display    = isCollection ? '' : 'none';
   document.getElementById('stats-page').classList.toggle('visible', isStats);
   document.getElementById('budget-page').style.display = isBudget ? 'block' : 'none';
+  document.getElementById('albums-page').style.display = isAlbums ? 'block' : 'none';
 
   if (isHome)   { renderGameHome(); renderGrid(); renderDetail(); }
   if (isStats)  renderStats();
   if (isBudget) renderBudget();
+  if (isAlbums) { resetAlbumsToList(); renderAlbumsPage(); }
 }
 
 // --- VIEW MODE ---
@@ -3674,6 +4129,7 @@ function drawPie(canvasId, legendId, dataObj, total, isValue) {
 // --- INIT ---
 loadCards();
 loadBudget();
+loadAlbums();
 initGistBtnState();
 setSyncIndicator('saved', 'Salvato');
 updateBudgetStat();
@@ -3693,6 +4149,7 @@ updateBudgetStat();
   renderGameHome();
   renderGrid();   // mostra i totali di tutti i giochi nella navbar finché nessun gioco è selezionato
   renderDetail();
+  renderAlbumsPage();
 })();
 
 // Auto-pull dal Gist se token e ID sono già salvati
@@ -3747,6 +4204,16 @@ updateBudgetStat();
         if (Array.isArray(pf)) saveFriends(pf);
       }
     } catch {}
+    // Also try to pull albums
+    try {
+      const alf = data.files[ALBUMS_FILENAME];
+      if (alf) {
+        let alcontent = alf.content;
+        if (alf.truncated) { const r = await fetch(alf.raw_url); alcontent = await r.text(); }
+        const pa = JSON.parse(alcontent);
+        if (Array.isArray(pa)) { albums = pa; saveAlbums(); }
+      }
+    } catch {}
     isPulling = false;
     clearTimeout(autoPushTimer);
     // Re-render: if a game is selected stay in it, else show home
@@ -3756,6 +4223,7 @@ updateBudgetStat();
     } else {
       renderGameHome();
     }
+    renderAlbumsPage();
     if (lbl) lbl.textContent = 'Accounts';
     markAccountSynced(true);
     setSyncIndicator('saved', 'Salvato');
