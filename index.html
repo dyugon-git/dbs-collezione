@@ -1188,6 +1188,9 @@ body.guest-mode .budget-delete-btn{display:none !important;}
 .album-detail-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
 .album-page-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .album-page-grid{display:grid;gap:10px;}
+.album-spread{display:flex;justify-content:center;align-items:flex-start;}
+.album-page-wrap{padding:0 16px;}
+.album-spread.spread-two .album-page-wrap:first-child{border-right:1px dashed var(--border);}
 .album-slot{aspect-ratio:2/3;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
 .album-slot.empty{color:var(--text3);font-size:24px;border-style:dashed;}
 .album-slot img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -1666,13 +1669,14 @@ body.guest-mode .budget-delete-btn{display:none !important;}
         <button class="btn btn-sm" onclick="albumPagePrev()" id="album-prev-btn">‹</button>
         <span id="album-page-indicator" style="font-size:13px;color:var(--text2);white-space:nowrap">Pagina 1 di 1</span>
         <button class="btn btn-sm" onclick="albumPageNext()" id="album-next-btn">›</button>
+        <button class="btn btn-sm guest-hide" onclick="removeAlbumPage()" title="Rimuovi ultima pagina">− Pagina</button>
         <button class="btn btn-sm guest-hide" onclick="addAlbumPage()">+ Pagina</button>
         <button class="btn btn-sm guest-hide" onclick="deleteCurrentAlbum()" style="color:var(--red);border-color:var(--red)" title="Elimina album">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
         </button>
       </div>
     </div>
-    <div class="album-page-grid" id="album-page-grid"></div>
+    <div class="album-spread" id="album-spread"></div>
   </div>
 
 </div>
@@ -1718,7 +1722,7 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <button type="button" class="view-btn active" id="album-picker-filter-all" onclick="setAlbumPickerFilter('all')">Tutte</button>
       <button type="button" class="view-btn" id="album-picker-filter-have" onclick="setAlbumPickerFilter('have')">✅ Possedute</button>
       <button type="button" class="view-btn" id="album-picker-filter-missing" onclick="setAlbumPickerFilter('missing')">❌ Mancanti</button>
-      <select id="album-picker-rarity" onchange="renderAlbumPickerResults()" style="margin-left:auto;min-width:130px"></select>
+      <select id="album-picker-rarity" onchange="renderAlbumPickerResults()" style="margin-left:auto;min-width:90px"></select>
     </div>
     <div id="album-picker-results" style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
     <div class="modal-actions">
@@ -3069,8 +3073,10 @@ function saveBudget() { if (guestMode) return; localStorage.setItem(BUDGET_KEY, 
 const ALBUMS_KEY = 'dbsfw_albums';
 let albums = [];
 let currentAlbumId = null;
-let currentAlbumPage = 0;
+let currentAlbumStep = 0; // indice nell'array "steps" (1 pagina su mobile, spread da 2 su desktop dopo la prima)
+let albumPickerPageIndex = null;
 let albumPickerSlotIndex = null;
+let albumSlotActionsPageIndex = null;
 let albumSlotActionsIndex = null;
 
 function loadAlbums() {
@@ -3093,7 +3099,7 @@ function albumProgress(album) {
 
 function resetAlbumsToList() {
   currentAlbumId = null;
-  currentAlbumPage = 0;
+  currentAlbumStep = 0;
   const listView = document.getElementById('albums-list-view');
   const detailView = document.getElementById('album-detail-view');
   if (listView) listView.style.display = 'block';
@@ -3200,7 +3206,7 @@ function deleteCurrentAlbum() {
 
 function openAlbum(id) {
   currentAlbumId = id;
-  currentAlbumPage = 0;
+  currentAlbumStep = 0;
   const listView = document.getElementById('albums-list-view');
   const detailView = document.getElementById('album-detail-view');
   if (listView) listView.style.display = 'none';
@@ -3213,62 +3219,93 @@ function closeAlbumDetail() {
   renderAlbumsPage();
 }
 
+// Su desktop, dopo la prima pagina (mostrata da sola come la copertina aperta), le pagine
+// successive si mostrano affiancate a due a due, come un vero album. Su mobile: una alla volta.
+function computeAlbumSteps(album) {
+  const n = album.pages.length;
+  const steps = [];
+  if (window.innerWidth > 768) {
+    steps.push([0]);
+    let i = 1;
+    while (i < n) {
+      if (i + 1 < n) { steps.push([i, i+1]); i += 2; }
+      else { steps.push([i]); i += 1; }
+    }
+  } else {
+    for (let i = 0; i < n; i++) steps.push([i]);
+  }
+  return steps;
+}
+
 function renderAlbumDetail() {
   const album = albums.find(a => a.id === currentAlbumId);
   if (!album) { closeAlbumDetail(); return; }
-  if (currentAlbumPage >= album.pages.length) currentAlbumPage = album.pages.length - 1;
-  if (currentAlbumPage < 0) currentAlbumPage = 0;
+
+  const steps = computeAlbumSteps(album);
+  if (currentAlbumStep >= steps.length) currentAlbumStep = steps.length - 1;
+  if (currentAlbumStep < 0) currentAlbumStep = 0;
+  const pagesShown = steps[currentAlbumStep] || [0];
 
   const titleEl = document.getElementById('album-detail-title');
   if (titleEl) titleEl.textContent = album.name;
   const indEl = document.getElementById('album-page-indicator');
-  if (indEl) indEl.textContent = `Pagina ${currentAlbumPage+1} di ${album.pages.length}`;
+  if (indEl) {
+    indEl.textContent = pagesShown.length === 2
+      ? `Pagine ${pagesShown[0]+1}-${pagesShown[1]+1} di ${album.pages.length}`
+      : `Pagina ${pagesShown[0]+1} di ${album.pages.length}`;
+  }
   const prevBtn = document.getElementById('album-prev-btn');
-  if (prevBtn) prevBtn.disabled = currentAlbumPage === 0;
+  if (prevBtn) prevBtn.disabled = currentAlbumStep === 0;
   const nextBtn = document.getElementById('album-next-btn');
-  if (nextBtn) nextBtn.disabled = currentAlbumPage === album.pages.length - 1;
+  if (nextBtn) nextBtn.disabled = currentAlbumStep === steps.length - 1;
 
-  const grid = document.getElementById('album-page-grid');
-  if (!grid) return;
-  const pageSlots = album.pages[currentAlbumPage] || [];
-  grid.innerHTML = pageSlots.map((cid, idx) => albumSlotHTML(cid, idx)).join('');
+  const spread = document.getElementById('album-spread');
+  if (!spread) return;
+  spread.classList.toggle('spread-two', pagesShown.length === 2);
+  spread.innerHTML = pagesShown.map(pIdx => {
+    const pageSlots = album.pages[pIdx] || [];
+    const slotsHtml = pageSlots.map((cid, idx) => albumSlotHTML(cid, pIdx, idx)).join('');
+    return `<div class="album-page-wrap"><div class="album-page-grid" data-page="${pIdx}">${slotsHtml}</div></div>`;
+  }).join('');
+
   fitAlbumGrid();
 }
 
 // Adatta la griglia dell'album allo spazio disponibile: su desktop calcola una dimensione
-// per slot tale da mostrare tutte le righe/colonne senza dover scorrere la pagina;
-// su mobile lascia il comportamento responsive naturale (che è già corretto).
+// per slot tale da mostrare tutte le righe/colonne (ed entrambe le pagine affiancate) senza
+// dover scorrere la pagina; su mobile lascia il comportamento responsive naturale.
 function fitAlbumGrid() {
-  const grid = document.getElementById('album-page-grid');
-  if (!grid) return;
+  const spread = document.getElementById('album-spread');
+  if (!spread) return;
   const album = albums.find(a => a.id === currentAlbumId);
   if (!album) return;
+  const grids = spread.querySelectorAll('.album-page-grid');
+  if (!grids.length) return;
 
   if (window.innerWidth <= 768) {
-    grid.style.gridTemplateColumns = `repeat(${album.cols}, 1fr)`;
-    grid.style.width = '';
-    grid.style.maxWidth = '';
-    grid.style.margin = '';
+    grids.forEach(g => { g.style.gridTemplateColumns = `repeat(${album.cols}, 1fr)`; g.style.width = ''; });
     return;
   }
 
+  const pagesCount = grids.length; // 1 o 2
   const gap = 10;
-  const wrapper = grid.parentElement;
-  const availableWidth = (wrapper ? wrapper.clientWidth : grid.clientWidth) || 600;
-  const top = grid.getBoundingClientRect().top;
+  const wrapPadding = 32; // 16px + 16px di padding orizzontale per pagina (vedi CSS .album-page-wrap)
+  const availableWidthTotal = (spread.parentElement ? spread.parentElement.clientWidth : spread.clientWidth) || 900;
+  const availableWidthPerPage = (availableWidthTotal / pagesCount) - wrapPadding;
+  const top = spread.getBoundingClientRect().top;
   const availableHeight = Math.max(window.innerHeight - top - 24, 120);
 
   const rows = album.rows, cols = album.cols;
-  const widthFromW = (availableWidth - gap * (cols - 1)) / cols;
+  const widthFromW = (availableWidthPerPage - gap * (cols - 1)) / cols;
   const heightFromH = (availableHeight - gap * (rows - 1)) / rows;
   const widthFromH = heightFromH * (2 / 3);
   let slotW = Math.floor(Math.min(widthFromW, widthFromH));
   slotW = Math.max(Math.min(slotW, 220), 36);
 
-  grid.style.gridTemplateColumns = `repeat(${cols}, ${slotW}px)`;
-  grid.style.width = 'fit-content';
-  grid.style.maxWidth = '100%';
-  grid.style.margin = '0 auto';
+  grids.forEach(g => {
+    g.style.gridTemplateColumns = `repeat(${cols}, ${slotW}px)`;
+    g.style.width = 'fit-content';
+  });
 }
 
 let albumGridResizeTimer;
@@ -3276,32 +3313,34 @@ window.addEventListener('resize', () => {
   clearTimeout(albumGridResizeTimer);
   albumGridResizeTimer = setTimeout(() => {
     const detailView = document.getElementById('album-detail-view');
-    if (detailView && detailView.style.display !== 'none') fitAlbumGrid();
+    if (detailView && detailView.style.display !== 'none') renderAlbumDetail();
   }, 150);
 });
 
-function albumSlotHTML(cardId, idx) {
+function albumSlotHTML(cardId, pageIndex, idx) {
   if (!cardId) {
     if (guestMode) return `<div class="album-slot empty" style="cursor:default"></div>`;
-    return `<div class="album-slot empty" onclick="openSlotPicker(${idx})">+</div>`;
+    return `<div class="album-slot empty" onclick="openSlotPicker(${pageIndex}, ${idx})">+</div>`;
   }
   const c = cards.find(c2 => c2.id === cardId);
   if (!c) {
-    return `<div class="album-slot not-found" onclick="openAlbumSlotActions(${idx})">Carta<br>non trovata</div>`;
+    return `<div class="album-slot not-found" onclick="openAlbumSlotActions(${pageIndex}, ${idx})">Carta<br>non trovata</div>`;
   }
   const srcs = getImgSrc(c.code);
   const missCls = c.status === 'missing' ? ' missing' : '';
-  return `<div class="album-slot${missCls}" onclick="openAlbumSlotActions(${idx})">
+  return `<div class="album-slot${missCls}" onclick="openAlbumSlotActions(${pageIndex}, ${idx})">
     ${srcs ? imgWithFallback(srcs, c.code) + `<div style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:9px;text-align:center;padding:4px;color:var(--text3)">${esc(c.code)}</div>` : `<span style="font-size:10px;text-align:center;padding:4px">${esc(c.code)}</span>`}
   </div>`;
 }
 
 function albumPagePrev() {
-  if (currentAlbumPage > 0) { currentAlbumPage--; renderAlbumDetail(); }
+  if (currentAlbumStep > 0) { currentAlbumStep--; renderAlbumDetail(); }
 }
 function albumPageNext() {
   const album = albums.find(a => a.id === currentAlbumId);
-  if (album && currentAlbumPage < album.pages.length - 1) { currentAlbumPage++; renderAlbumDetail(); }
+  if (!album) return;
+  const steps = computeAlbumSteps(album);
+  if (currentAlbumStep < steps.length - 1) { currentAlbumStep++; renderAlbumDetail(); }
 }
 function addAlbumPage() {
   if (guestMode) return;
@@ -3309,9 +3348,28 @@ function addAlbumPage() {
   if (!album) return;
   album.pages.push(Array(album.rows * album.cols).fill(null));
   saveAlbums();
-  currentAlbumPage = album.pages.length - 1;
+  const steps = computeAlbumSteps(album);
+  currentAlbumStep = steps.length - 1;
   renderAlbumDetail();
   toast('Pagina aggiunta', 'success');
+}
+function removeAlbumPage() {
+  if (guestMode) return;
+  const album = albums.find(a => a.id === currentAlbumId);
+  if (!album) return;
+  if (album.pages.length <= 1) { toast('Deve rimanere almeno una pagina', 'error'); return; }
+  const lastPage = album.pages[album.pages.length - 1];
+  const filledCount = lastPage.filter(Boolean).length;
+  const msg = filledCount > 0
+    ? `L'ultima pagina contiene ${filledCount} cart${filledCount===1?'a':'e'} assegnat${filledCount===1?'a':'e'}. Rimuovendola perderai anche quelle. Continuare?`
+    : 'Rimuovere l\'ultima pagina dell\'album?';
+  if (!confirm(msg)) return;
+  album.pages.pop();
+  saveAlbums();
+  const steps = computeAlbumSteps(album);
+  if (currentAlbumStep >= steps.length) currentAlbumStep = steps.length - 1;
+  renderAlbumDetail();
+  toast('Pagina rimossa', 'info');
 }
 
 let albumPickerFilter = 'all'; // 'all' | 'have' | 'missing'
@@ -3328,12 +3386,13 @@ function populateAlbumPickerRarityOptions(game) {
   const sel = document.getElementById('album-picker-rarity');
   if (!sel) return;
   const rarities = GAME_RARITIES[game] || [];
-  sel.innerHTML = '<option value="">Tutte le rarità</option>' + rarities.map(r => `<option value="${esc(r[0])}">${esc(r[0])}</option>`).join('');
+  sel.innerHTML = '<option value="">Rarità</option>' + rarities.map(r => `<option value="${esc(r[0])}">${esc(r[0])}</option>`).join('');
   sel.value = '';
 }
 
-function openSlotPicker(idx) {
+function openSlotPicker(pageIndex, idx) {
   if (guestMode) return;
+  albumPickerPageIndex = pageIndex;
   albumPickerSlotIndex = idx;
   const album = albums.find(a => a.id === currentAlbumId);
   albumPickerFilter = 'all';
@@ -3348,6 +3407,7 @@ function openSlotPicker(idx) {
 }
 function closeAlbumPicker() {
   document.getElementById('album-picker-modal-bg').classList.remove('open');
+  albumPickerPageIndex = null;
   albumPickerSlotIndex = null;
 }
 function closeAlbumPickerOnBg(e) { if (e.target.id === 'album-picker-modal-bg') closeAlbumPicker(); }
@@ -3388,18 +3448,19 @@ function renderAlbumPickerResults() {
 function assignCardToSlot(cardId) {
   if (guestMode) return;
   const album = albums.find(a => a.id === currentAlbumId);
-  if (!album || albumPickerSlotIndex === null) return;
-  album.pages[currentAlbumPage][albumPickerSlotIndex] = cardId;
+  if (!album || albumPickerPageIndex === null || albumPickerSlotIndex === null) return;
+  album.pages[albumPickerPageIndex][albumPickerSlotIndex] = cardId;
   saveAlbums();
   closeAlbumPicker();
   renderAlbumDetail();
 }
 
-function openAlbumSlotActions(idx) {
+function openAlbumSlotActions(pageIndex, idx) {
+  albumSlotActionsPageIndex = pageIndex;
   albumSlotActionsIndex = idx;
   const album = albums.find(a => a.id === currentAlbumId);
   if (!album) return;
-  const cid = album.pages[currentAlbumPage][idx];
+  const cid = album.pages[pageIndex][idx];
   const c = cards.find(c2 => c2.id === cid);
   const titleEl = document.getElementById('album-slot-actions-title');
   if (titleEl) titleEl.textContent = c ? (c.code + (c.name ? ' · ' + c.name : '')) : 'Carta non trovata';
@@ -3409,6 +3470,7 @@ function openAlbumSlotActions(idx) {
 }
 function closeAlbumSlotActions() {
   document.getElementById('album-slot-actions-modal-bg').classList.remove('open');
+  albumSlotActionsPageIndex = null;
   albumSlotActionsIndex = null;
 }
 function closeAlbumSlotActionsOnBg(e) { if (e.target.id === 'album-slot-actions-modal-bg') closeAlbumSlotActions(); }
@@ -3416,7 +3478,7 @@ function closeAlbumSlotActionsOnBg(e) { if (e.target.id === 'album-slot-actions-
 function viewAlbumSlotCardDetail() {
   const album = albums.find(a => a.id === currentAlbumId);
   if (!album) return;
-  const cid = album.pages[currentAlbumPage][albumSlotActionsIndex];
+  const cid = album.pages[albumSlotActionsPageIndex][albumSlotActionsIndex];
   const c = cards.find(c2 => c2.id === cid);
   closeAlbumSlotActions();
   if (!c) return;
@@ -3431,16 +3493,17 @@ function viewAlbumSlotCardDetail() {
 
 function replaceAlbumSlotCard() {
   if (guestMode) return;
+  const pageIndex = albumSlotActionsPageIndex;
   const idx = albumSlotActionsIndex;
   closeAlbumSlotActions();
-  openSlotPicker(idx);
+  openSlotPicker(pageIndex, idx);
 }
 
 function removeAlbumSlotCard() {
   if (guestMode) return;
   const album = albums.find(a => a.id === currentAlbumId);
   if (!album) return;
-  album.pages[currentAlbumPage][albumSlotActionsIndex] = null;
+  album.pages[albumSlotActionsPageIndex][albumSlotActionsIndex] = null;
   saveAlbums();
   closeAlbumSlotActions();
   renderAlbumDetail();
