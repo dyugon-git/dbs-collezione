@@ -1880,13 +1880,14 @@ function saveImgFolder() { /* img-folder input removed */ }
 function getImgFolder() { return 'immagini/'; }
 
 // --- IMG ---
-function getImgSrc(code, game) {
+function getImgSrc(code, game, rarity) {
   if (!code) return null;
   const folder = getImgFolder().replace(/\/?$/, '/');
   const c = code.toUpperCase();
   const localSrcs = [folder+c+'.jpg', folder+c+'.png', folder+c+'.webp', folder+c+'.jpeg'];
   if (game === 'Dragon Ball') {
-    return ['https://www.dbs-cardgame.com/fw/images/cards/card/en/'+c+'_p1.webp', ...localSrcs];
+    const suffix = rarity === 'L★' ? '_b_p1' : '_p1';
+    return ['https://www.dbs-cardgame.com/fw/images/cards/card/en/'+c+suffix+'.webp', ...localSrcs];
   }
   return localSrcs;
 }
@@ -2057,8 +2058,7 @@ function renderGrid() {
 }
 
 function cardThumbHTML(c) {
-  const srcs = getImgSrc(c.code, c.game);
-  const sel  = c.id === selectedId ? ' selected' : '';
+  const srcs = getImgSrc(c.code, c.game, c.rarity);
   const rKey = RARITY_KEY[c.rarity] || '';
   const rarCls = rKey ? ' rarity-'+rKey : '';
   const misCls = c.status === 'missing' ? ' missing' : '';
@@ -2088,7 +2088,7 @@ function cardThumbHTML(c) {
 
 // --- SELECT CARD ---
 function buildDetailHTML(card) {
-  const srcs   = getImgSrc(card.code, card.game);
+  const srcs   = getImgSrc(card.code, card.game, card.rarity);
   const rKey   = RARITY_KEY[card.rarity] || 'none';
   const misCls = card.status === 'missing' ? ' missing' : '';
   return `
@@ -3397,7 +3397,7 @@ function albumSlotHTML(cardId, pageIndex, idx) {
   if (!c) {
     return `<div class="album-slot not-found" onclick="openAlbumSlotActions(${pageIndex}, ${idx})">Carta<br>non trovata</div>`;
   }
-  const srcs = getImgSrc(c.code, c.game);
+  const srcs = getImgSrc(c.code, c.game, c.rarity);
   const missCls = c.status === 'missing' ? ' missing' : '';
   return `<div class="album-slot${missCls}" onclick="openAlbumSlotActions(${pageIndex}, ${idx})">
     ${srcs ? imgWithFallback(srcs, c.code) + `<div style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:9px;text-align:center;padding:4px;color:var(--text3)">${esc(c.code)}</div>` : `<span style="font-size:10px;text-align:center;padding:4px">${esc(c.code)}</span>`}
@@ -3525,7 +3525,7 @@ function renderAlbumPickerResults() {
     return;
   }
   container.innerHTML = filtered.slice(0, 150).map(c => {
-    const srcs = getImgSrc(c.code, c.game);
+    const srcs = getImgSrc(c.code, c.game, c.rarity);
     const rKey = RARITY_KEY[c.rarity] || 'none';
     const thumb = `<div class="album-picker-thumb">${srcs ? imgWithFallback(srcs, c.code) : ''}</div>`;
     return `<div class="friend-row" style="cursor:pointer" onclick="assignCardToSlot('${c.id}')">
