@@ -1664,6 +1664,9 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <div style="display:flex;align-items:center;gap:10px;min-width:0">
         <button class="btn btn-sm" onclick="closeAlbumDetail()">← Album</button>
         <h2 id="album-detail-title" style="margin:0;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></h2>
+        <button class="btn btn-sm guest-hide" onclick="openAlbumRename(currentAlbumId, event)" title="Rinomina album" style="flex-shrink:0">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
       </div>
       <div class="album-page-nav">
         <button class="btn btn-sm" onclick="albumPagePrev()" id="album-prev-btn">‹</button>
@@ -1711,10 +1714,29 @@ body.guest-mode .budget-delete-btn{display:none !important;}
   </div>
 </div>
 
+<!-- ALBUM RENAME MODAL -->
+<div class="modal-bg" id="album-rename-modal-bg" onclick="closeAlbumRenameOnBg(event)">
+  <div class="modal" style="max-width:380px">
+    <h2>Rinomina album</h2>
+    <div class="form-field">
+      <label>Nome album *</label>
+      <input type="text" id="alb-rename-input" placeholder="Nome album">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAlbumRename()">Annulla</button>
+      <button class="btn btn-primary" onclick="saveAlbumRename()">Salva</button>
+    </div>
+  </div>
+</div>
+
 <!-- ALBUM SLOT PICKER MODAL -->
 <div class="modal-bg" id="album-picker-modal-bg" onclick="closeAlbumPickerOnBg(event)">
   <div class="modal" style="max-width:520px">
-    <h2>Scegli carta</h2>
+    <h2>Scegli carta <span id="album-picker-target" style="font-weight:400;font-size:12px;color:var(--text3)"></span></h2>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" id="album-picker-continuous" onchange="albumPickerContinuous=this.checked">
+      Continua a inserire carte in ordine (non chiudere dopo ogni scelta)
+    </label>
     <div class="form-field">
       <input type="text" id="album-picker-search" placeholder="Cerca per codice o nome…" oninput="renderAlbumPickerResults()">
     </div>
@@ -3120,7 +3142,12 @@ function renderAlbumsPage() {
     return `<div class="album-card-item" onclick="openAlbum('${a.id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div class="album-name">${esc(a.name)}</div>
-        <button type="button" class="btn btn-sm guest-hide album-delete-btn" onclick="deleteAlbum('${a.id}', event)" title="Elimina album">✕</button>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button type="button" class="btn btn-sm guest-hide" onclick="openAlbumRename('${a.id}', event)" title="Rinomina album">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button type="button" class="btn btn-sm guest-hide album-delete-btn" onclick="deleteAlbum('${a.id}', event)" title="Elimina album">✕</button>
+        </div>
       </div>
       <div class="album-meta">
         <span>${a.rows}×${a.cols}</span>
@@ -3192,6 +3219,39 @@ function deleteAlbum(id, evt) {
   saveAlbums();
   renderAlbumsPage();
   toast('Album eliminato', 'info');
+}
+
+let albumRenameTargetId = null;
+
+function openAlbumRename(id, evt) {
+  if (guestMode) return;
+  if (evt) evt.stopPropagation();
+  const album = albums.find(a => a.id === id);
+  if (!album) return;
+  albumRenameTargetId = id;
+  const input = document.getElementById('alb-rename-input');
+  if (input) input.value = album.name;
+  document.getElementById('album-rename-modal-bg').classList.add('open');
+}
+function closeAlbumRename() {
+  document.getElementById('album-rename-modal-bg').classList.remove('open');
+  albumRenameTargetId = null;
+}
+function closeAlbumRenameOnBg(e) { if (e.target.id === 'album-rename-modal-bg') closeAlbumRename(); }
+
+function saveAlbumRename() {
+  if (guestMode || !albumRenameTargetId) return;
+  const album = albums.find(a => a.id === albumRenameTargetId);
+  if (!album) return;
+  const newName = (document.getElementById('alb-rename-input').value || '').trim();
+  if (!newName) { toast('Inserisci un nome valido', 'error'); return; }
+  album.name = newName;
+  saveAlbums();
+  const renamedId = album.id;
+  closeAlbumRename();
+  renderAlbumsPage();
+  if (currentAlbumId === renamedId) renderAlbumDetail();
+  toast('Album rinominato', 'success');
 }
 
 function deleteCurrentAlbum() {
@@ -3373,6 +3433,7 @@ function removeAlbumPage() {
 }
 
 let albumPickerFilter = 'all'; // 'all' | 'have' | 'missing'
+let albumPickerContinuous = false;
 
 function setAlbumPickerFilter(f) {
   albumPickerFilter = f;
@@ -3390,6 +3451,24 @@ function populateAlbumPickerRarityOptions(game) {
   sel.value = '';
 }
 
+function updateAlbumPickerTargetLabel() {
+  const el = document.getElementById('album-picker-target');
+  if (!el) return;
+  if (albumPickerPageIndex === null || albumPickerSlotIndex === null) { el.textContent = ''; return; }
+  el.textContent = `— pagina ${albumPickerPageIndex+1}, slot ${albumPickerSlotIndex+1}`;
+}
+
+function findNextEmptyAlbumSlot(album, fromPage, fromSlot) {
+  for (let p = fromPage; p < album.pages.length; p++) {
+    const page = album.pages[p];
+    const startSlot = (p === fromPage) ? fromSlot : 0;
+    for (let s = startSlot; s < page.length; s++) {
+      if (!page[s]) return { page: p, slot: s };
+    }
+  }
+  return null;
+}
+
 function openSlotPicker(pageIndex, idx) {
   if (guestMode) return;
   albumPickerPageIndex = pageIndex;
@@ -3402,6 +3481,9 @@ function openSlotPicker(pageIndex, idx) {
   if (album) populateAlbumPickerRarityOptions(album.game);
   const search = document.getElementById('album-picker-search');
   if (search) search.value = '';
+  const contCb = document.getElementById('album-picker-continuous');
+  if (contCb) contCb.checked = albumPickerContinuous;
+  updateAlbumPickerTargetLabel();
   renderAlbumPickerResults();
   document.getElementById('album-picker-modal-bg').classList.add('open');
 }
@@ -3409,6 +3491,7 @@ function closeAlbumPicker() {
   document.getElementById('album-picker-modal-bg').classList.remove('open');
   albumPickerPageIndex = null;
   albumPickerSlotIndex = null;
+  updateAlbumPickerTargetLabel();
 }
 function closeAlbumPickerOnBg(e) { if (e.target.id === 'album-picker-modal-bg') closeAlbumPicker(); }
 
@@ -3451,8 +3534,23 @@ function assignCardToSlot(cardId) {
   if (!album || albumPickerPageIndex === null || albumPickerSlotIndex === null) return;
   album.pages[albumPickerPageIndex][albumPickerSlotIndex] = cardId;
   saveAlbums();
-  closeAlbumPicker();
   renderAlbumDetail();
+
+  if (albumPickerContinuous) {
+    const next = findNextEmptyAlbumSlot(album, albumPickerPageIndex, albumPickerSlotIndex + 1);
+    if (next) {
+      albumPickerPageIndex = next.page;
+      albumPickerSlotIndex = next.slot;
+      updateAlbumPickerTargetLabel();
+      renderAlbumPickerResults();
+      toast('Carta inserita — scegli la prossima', 'success');
+    } else {
+      closeAlbumPicker();
+      toast('Album completato!', 'success');
+    }
+  } else {
+    closeAlbumPicker();
+  }
 }
 
 function openAlbumSlotActions(pageIndex, idx) {
