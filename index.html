@@ -1191,6 +1191,11 @@ body.guest-mode .budget-delete-btn{display:none !important;}
 .album-spread{display:flex;justify-content:center;align-items:flex-start;}
 .album-page-wrap{padding:0 16px;}
 .album-spread.spread-two .album-page-wrap:first-child{border-right:1px dashed var(--border);}
+@media (max-width: 768px) {
+  .album-spread{display:block;}
+  .album-page-wrap{width:100%;padding:0;}
+  .album-page-grid{width:100%;}
+}
 .album-slot{aspect-ratio:2/3;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
 .album-slot.empty{color:var(--text3);font-size:24px;border-style:dashed;}
 .album-slot img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -1667,6 +1672,9 @@ body.guest-mode .budget-delete-btn{display:none !important;}
         <button class="btn btn-sm guest-hide" onclick="openAlbumRename(currentAlbumId, event)" title="Rinomina album" style="flex-shrink:0">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
+        <button class="btn btn-sm guest-hide" onclick="deleteCurrentAlbum()" style="color:var(--red);border-color:var(--red);flex-shrink:0" title="Elimina album">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+        </button>
       </div>
       <div class="album-page-nav">
         <button class="btn btn-sm" onclick="albumPagePrev()" id="album-prev-btn">‹</button>
@@ -1674,9 +1682,6 @@ body.guest-mode .budget-delete-btn{display:none !important;}
         <button class="btn btn-sm" onclick="albumPageNext()" id="album-next-btn">›</button>
         <button class="btn btn-sm guest-hide" onclick="removeAlbumPage()" title="Rimuovi ultima pagina">− Pagina</button>
         <button class="btn btn-sm guest-hide" onclick="addAlbumPage()">+ Pagina</button>
-        <button class="btn btn-sm guest-hide" onclick="deleteCurrentAlbum()" style="color:var(--red);border-color:var(--red)" title="Elimina album">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-        </button>
       </div>
     </div>
     <div class="album-spread" id="album-spread"></div>
@@ -3146,7 +3151,9 @@ function renderAlbumsPage() {
           <button type="button" class="btn btn-sm guest-hide" onclick="openAlbumRename('${a.id}', event)" title="Rinomina album">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button type="button" class="btn btn-sm guest-hide album-delete-btn" onclick="deleteAlbum('${a.id}', event)" title="Elimina album">✕</button>
+          <button type="button" class="btn btn-sm guest-hide album-delete-btn" onclick="deleteAlbum('${a.id}', event)" title="Elimina album">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+          </button>
         </div>
       </div>
       <div class="album-meta">
