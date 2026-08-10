@@ -2065,6 +2065,7 @@ function renderGrid() {
 
 function cardThumbHTML(c) {
   const srcs = getImgSrc(c.code, c.game, c.rarity);
+  const sel  = c.id === selectedId ? ' selected' : '';
   const rKey = RARITY_KEY[c.rarity] || '';
   const rarCls = rKey ? ' rarity-'+rKey : '';
   const misCls = c.status === 'missing' ? ' missing' : '';
