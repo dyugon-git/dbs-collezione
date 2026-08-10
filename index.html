@@ -1889,6 +1889,12 @@ function getImgSrc(code, game, rarity) {
     const suffix = rarity === 'L★' ? '_b_p1' : '_p1';
     return ['https://www.dbs-cardgame.com/fw/images/cards/card/en/'+c+suffix+'.webp', ...localSrcs];
   }
+  if (game === 'Digimon') {
+    return ['https://world.digimoncard.com/images/cardlist/card/'+c+'_P1.png', ...localSrcs];
+  }
+  if (game === 'One Piece') {
+    return ['https://en.onepiece-cardgame.com/images/cardlist/card/'+c+'_p1.png', ...localSrcs];
+  }
   return localSrcs;
 }
 function imgWithFallback(srcs, alt) {
