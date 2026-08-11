@@ -1888,16 +1888,19 @@ function getImgSrc(code, game, rarity) {
   const folder = getImgFolder().replace(/\/?$/, '/');
   const c = code.toUpperCase();
   const localSrcs = [folder+c+'.jpg', folder+c+'.png', folder+c+'.webp', folder+c+'.jpeg'];
+  const viaProxy = (path) => 'https://images.weserv.nl/?url=' + encodeURIComponent(path);
   if (game === 'Dragon Ball') {
     const suffix = rarity === 'L★' ? '_b_p1' : '_p1';
-    return ['https://www.dbs-cardgame.com/fw/images/cards/card/en/'+c+suffix+'.webp', ...localSrcs];
+    const path = 'www.dbs-cardgame.com/fw/images/cards/card/en/'+c+suffix+'.webp';
+    return [viaProxy(path), 'https://'+path, ...localSrcs];
   }
   if (game === 'Digimon') {
-    return ['https://world.digimoncard.com/images/cardlist/card/'+c+'_P1.png', ...localSrcs];
+    const path = 'world.digimoncard.com/images/cardlist/card/'+c+'_P1.png';
+    return [viaProxy(path), 'https://'+path, ...localSrcs];
   }
   if (game === 'One Piece') {
-    const officialPath = 'en.onepiece-cardgame.com/images/cardlist/card/'+c+'_p1.png';
-    return ['https://images.weserv.nl/?url='+encodeURIComponent(officialPath), ...localSrcs];
+    const path = 'en.onepiece-cardgame.com/images/cardlist/card/'+c+'_p1.png';
+    return [viaProxy(path), 'https://'+path, ...localSrcs];
   }
   return localSrcs;
 }
