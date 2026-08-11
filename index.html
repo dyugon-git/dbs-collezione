@@ -1896,7 +1896,8 @@ function getImgSrc(code, game, rarity) {
     return ['https://world.digimoncard.com/images/cardlist/card/'+c+'_P1.png', ...localSrcs];
   }
   if (game === 'One Piece') {
-    return ['https://en.onepiece-cardgame.com/images/cardlist/card/'+c+'_p1.png', ...localSrcs];
+    const officialPath = 'en.onepiece-cardgame.com/images/cardlist/card/'+c+'_p1.png';
+    return ['https://images.weserv.nl/?url='+encodeURIComponent(officialPath), ...localSrcs];
   }
   return localSrcs;
 }
