@@ -1159,6 +1159,10 @@
 #guest-banner button{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.5);color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;}
 #guest-banner button:hover{background:rgba(255,255,255,.3);}
 body.guest-mode .guest-hide{display:none !important;}
+.value-field{display:none;}
+body.show-values .form-field.value-field{display:flex;}
+body.show-values .detail-row.value-field{display:flex;}
+body.show-values .card-thumb .value-field{display:inline;}
 body.guest-mode .fav-btn{pointer-events:none;opacity:.55;}
 body.guest-mode .status-btn{pointer-events:none;opacity:.6;}
 body.guest-mode .detail-actions .btn:not(.guest-keep){display:none !important;}
@@ -1452,6 +1456,14 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       Accounts
     </h2>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;">
+      <label for="toggle-show-values" style="font-size:13px;color:var(--text);cursor:pointer;display:flex;flex-direction:column;gap:2px;">
+        Mostra valori di mercato
+        <span style="font-size:11px;color:var(--text3);font-weight:400;">Valore attuale delle carte, in aggiunta al prezzo di acquisto</span>
+      </label>
+      <input type="checkbox" id="toggle-show-values" onchange="toggleShowValues(this.checked)" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;">
+    </div>
 
     <div class="gist-tabs">
       <button type="button" class="gist-tab-btn active" id="gist-tab-btn-mine" onclick="switchGistTab('mine')">La mia collezione</button>
@@ -1816,6 +1828,10 @@ body.guest-mode .budget-delete-btn{display:none !important;}
         <input type="number" id="f-price" placeholder="0.00" min="0" step="0.01">
       </div>
     </div>
+    <div class="form-field value-field">
+      <label>Valore di mercato (€) <span style="font-weight:400;color:var(--text3);font-size:11px">(prezzo attuale, per calcolare guadagno/perdita)</span></label>
+      <input type="number" id="f-value" placeholder="0.00" min="0" step="0.01">
+    </div>
     <div class="form-field">
       <label>Link mercato <span style="font-weight:400;color:var(--text3);font-size:11px">(URL per acquisto/vendita)</span></label>
       <input type="text" id="f-url" placeholder="https://www.cardmarket.com/…">
@@ -1951,7 +1967,7 @@ function renderGrid() {
   const total   = gamePool.length;
   const have    = gamePool.filter(c=>c.status==='have').length;
   const missing = gamePool.filter(c=>c.status==='missing').length;
-  const value   = gamePool.filter(c=>c.status==='have'&&c.price).reduce((a,c)=>a+parseFloat(c.price||0),0);
+  const value   = gamePool.filter(c=>c.status==='have'&&hasWorth(c)).reduce((a,c)=>a+cardWorth(c),0);
   document.getElementById('stat-total').textContent   = total;
   document.getElementById('stat-have').textContent    = have;
   document.getElementById('stat-missing').textContent = missing;
@@ -2013,9 +2029,9 @@ function renderGrid() {
       container.innerHTML = sortedKeys.map(setKey => {
         const grpCards = groups[setKey];
         const haveCount = grpCards.filter(c=>c.status==='have').length;
-        const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const haveValue = grpCards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
-        const missingValue = grpCards.filter(c=>c.status==='missing'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const missingValue = grpCards.filter(c=>c.status==='missing'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const missingStr = missingValue > 0 ? ` <span style="color:var(--text3);font-weight:400;font-size:11px">(−€${missingValue.toFixed(0)})</span>` : '';
         const isCollapsed = collapsedGroups.has('set:'+setKey);
         return `<div class="rarity-group${isCollapsed ? ' collapsed' : ''}">
@@ -2046,9 +2062,9 @@ function renderGrid() {
         const rKey = RARITY_KEY[r] || 'none';
         const label = r || 'Rarità non specificata';
         const haveCount = grpCards.filter(c=>c.status==='have').length;
-        const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const haveValue = grpCards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
-        const missingValue = grpCards.filter(c=>c.status==='missing'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const missingValue = grpCards.filter(c=>c.status==='missing'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const missingStr = missingValue > 0 ? ` <span style="color:var(--text3);font-weight:400;font-size:11px">(−€${missingValue.toFixed(0)})</span>` : '';
 
         const groupKey = 'rarity:'+r;
@@ -2096,6 +2112,7 @@ function cardThumbHTML(c) {
       </div>
       ${c.name  ? `<span class="card-name">${esc(c.name)}</span>`                      : ''}
       ${c.price ? `<span class="card-price">€${parseFloat(c.price).toFixed(2)}</span>` : ''}
+      ${c.value ? `<span class="card-price value-field" style="color:var(--blue2)">Val. €${parseFloat(c.value).toFixed(2)}</span>` : ''}
     </div>
   </div>`;
 }
@@ -2134,6 +2151,10 @@ function buildDetailHTML(card) {
       <div class="detail-row">
         <span class="detail-label">Prezzo acquisto</span>
         <span class="detail-value">${card.price ? '€'+parseFloat(card.price).toFixed(2) : '—'}</span>
+      </div>
+      <div class="detail-row value-field">
+        <span class="detail-label">Valore di mercato</span>
+        <span class="detail-value">${card.value ? '€'+parseFloat(card.value).toFixed(2) : '—'}${(card.value && card.price) ? (() => { const d = parseFloat(card.value) - parseFloat(card.price); const pct = parseFloat(card.price) ? (d/parseFloat(card.price)*100) : 0; const col = d > 0 ? 'var(--green)' : (d < 0 ? 'var(--red)' : 'var(--text3)'); const sign = d > 0 ? '+' : ''; return ` <span style="font-size:12px;font-weight:600;color:${col}">(${sign}€${d.toFixed(2)} / ${sign}${pct.toFixed(0)}%)</span>`; })() : ''}</span>
       </div>
       <div class="detail-actions">
         <button class="btn" style="flex:1" onclick="openModal('${card.id}')">
@@ -2259,6 +2280,7 @@ function openModal(id) {
   document.getElementById('f-rarity').value = card ? (card.rarity||'') : '';
   document.getElementById('f-status').value = card ? card.status : 'have';
   document.getElementById('f-price').value  = card ? (card.price||'') : '';
+  document.getElementById('f-value').value  = card ? (card.value||'') : '';
   document.getElementById('f-url').value    = card ? (card.url||'') : '';
   updateImgPreview();
   document.getElementById('modal-bg').classList.add('open');
@@ -2283,6 +2305,7 @@ function saveCard() {
     rarity: document.getElementById('f-rarity').value,
     status: document.getElementById('f-status').value,
     price:  document.getElementById('f-price').value ? parseFloat(document.getElementById('f-price').value) : null,
+    value:  document.getElementById('f-value').value ? parseFloat(document.getElementById('f-value').value) : null,
     url:    document.getElementById('f-url').value.trim() || null,
   };
 
@@ -3843,6 +3866,16 @@ function toast(msg, type) {
   el._t = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
+// --- CARD WORTH (valore di mercato, con fallback sul prezzo di acquisto) ---
+function cardWorth(c) {
+  if (c.value !== undefined && c.value !== null && c.value !== '') return parseFloat(c.value) || 0;
+  if (c.price !== undefined && c.price !== null && c.price !== '') return parseFloat(c.price) || 0;
+  return 0;
+}
+function hasWorth(c) {
+  return !!(c.value || c.price);
+}
+
 // --- ESC ---
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -3875,7 +3908,7 @@ function renderGameHome() {
     const totalCards   = cards.length;
     const totalHave    = cards.filter(c=>c.status==='have').length;
     const totalMissing = cards.filter(c=>c.status==='missing').length;
-    const totalValue   = cards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+    const totalValue   = cards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
     const totalGames   = new Set(cards.map(c=>c.game||'Dragon Ball')).size;
     gsEl.innerHTML = [
       { label:'Giochi',      value: totalGames,              color:'' },
@@ -3883,7 +3916,7 @@ function renderGameHome() {
       { label:'✅ Possedute', value: totalHave,              color:'color:var(--green)' },
       { label:'❌ Mancanti',  value: totalMissing,           color:'color:var(--text3)' },
       { label:'Valore',       value:'€'+totalValue.toFixed(0), color:'color:var(--accent2)' },
-      { label:'Costo mancanti', value:'€'+cards.filter(c=>c.status==='missing'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0).toFixed(0), color:'color:var(--red)' },
+      { label:'Costo mancanti', value:'€'+cards.filter(c=>c.status==='missing'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0).toFixed(0), color:'color:var(--red)' },
     ].map(s=>`<div class="global-stat-card">
       <div class="kpi-value" style="${s.color}">${s.value}</div>
       <div class="kpi-label">${s.label}</div>
@@ -3894,7 +3927,7 @@ function renderGameHome() {
     const gameCards = cards.filter(c => (c.game || 'Dragon Ball') === game);
     const have    = gameCards.filter(c => c.status === 'have').length;
     const missing = gameCards.filter(c => c.status === 'missing').length;
-    const value   = gameCards.filter(c => c.status === 'have' && c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+    const value   = gameCards.filter(c => c.status === 'have' && hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
     return { game, gameCards, have, missing, value };
   }).filter(g => g.gameCards.length > 0);
 
@@ -4124,9 +4157,9 @@ function renderTable(filtered) {
   const html = groupKeys.map(key => {
     const grpCards = groups[key];
     const haveCount = grpCards.filter(c=>c.status==='have').length;
-    const haveValue = grpCards.filter(c=>c.status==='have'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+    const haveValue = grpCards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
     const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
-        const missingValue = grpCards.filter(c=>c.status==='missing'&&c.price).reduce((s,c)=>s+parseFloat(c.price||0),0);
+        const missingValue = grpCards.filter(c=>c.status==='missing'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const missingStr = missingValue > 0 ? ` <span style="color:var(--text3);font-weight:400;font-size:11px">(−€${missingValue.toFixed(0)})</span>` : '';
     const rKey = RARITY_KEY[key] || 'none';
     const labelCls = groupBy === 'rarity' ? rKey : 'none';
@@ -4248,8 +4281,8 @@ function renderStats() {
   const gameCards = currentGame ? cards.filter(c => (c.game||'Dragon Ball') === currentGame) : cards;
   const owned   = gameCards.filter(c => c.status === 'have');
   const missing = gameCards.filter(c => c.status === 'missing');
-  const totalVal = owned.reduce((s,c) => s + parseFloat(c.price||0), 0);
-  const missingVal = missing.reduce((s,c) => s + parseFloat(c.price||0), 0);
+  const totalVal = owned.reduce((s,c) => s + cardWorth(c), 0);
+  const missingVal = missing.reduce((s,c) => s + cardWorth(c), 0);
   const totalCards = gameCards.length;
 
   // KPIs
@@ -4298,7 +4331,7 @@ function renderChart(side) {
   pool.forEach(c => {
     const k = opts.group === 'rarity' ? (c.rarity || 'Nessuna') : (c.set || 'Sconosciuto');
     if (!grouped[k]) grouped[k] = { value: 0, count: 0 };
-    grouped[k].value += parseFloat(c.price||0);
+    grouped[k].value += cardWorth(c);
     grouped[k].count += 1;
   });
 
@@ -4458,10 +4491,27 @@ function drawPie(canvasId, legendId, dataObj, total, isValue) {
 
 
 
+// --- SHOW VALUES TOGGLE ---
+const SHOW_VALUES_KEY = 'dbsfw_show_values';
+function toggleShowValues(checked) {
+  localStorage.setItem(SHOW_VALUES_KEY, checked ? '1' : '0');
+  document.body.classList.toggle('show-values', checked);
+  if (currentGame) { renderGrid(); renderDetail(); } else { renderGameHome(); }
+  if (document.getElementById('stats-page') && document.getElementById('stats-page').style.display !== 'none') renderStats();
+  renderBudget();
+}
+function initShowValues() {
+  const on = localStorage.getItem(SHOW_VALUES_KEY) === '1';
+  document.body.classList.toggle('show-values', on);
+  const cb = document.getElementById('toggle-show-values');
+  if (cb) cb.checked = on;
+}
+
 // --- INIT ---
 loadCards();
 loadBudget();
 loadAlbums();
+initShowValues();
 initGistBtnState();
 setSyncIndicator('saved', 'Salvato');
 updateBudgetStat();
