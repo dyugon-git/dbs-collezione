@@ -1824,12 +1824,12 @@ body.guest-mode .budget-delete-btn{display:none !important;}
         </select>
       </div>
       <div class="form-field">
-        <label>Prezzo acquisto (€)</label>
+        <label>Prezzo (€)</label>
         <input type="number" id="f-price" placeholder="0.00" min="0" step="0.01">
       </div>
     </div>
     <div class="form-field value-field">
-      <label>Valore di mercato (€) <span style="font-weight:400;color:var(--text3);font-size:11px">(prezzo attuale, per calcolare guadagno/perdita)</span></label>
+      <label>Valore di mercato (€)</label>
       <input type="number" id="f-value" placeholder="0.00" min="0" step="0.01">
     </div>
     <div class="form-field">
@@ -2111,8 +2111,7 @@ function cardThumbHTML(c) {
         </div>
       </div>
       ${c.name  ? `<span class="card-name">${esc(c.name)}</span>`                      : ''}
-      ${c.price ? `<span class="card-price">€${parseFloat(c.price).toFixed(2)}</span>` : ''}
-      ${c.value ? `<span class="card-price value-field" style="color:var(--blue2)">Val. €${parseFloat(c.value).toFixed(2)}</span>` : ''}
+      ${c.price ? `<span class="card-price">€${parseFloat(c.price).toFixed(2)}${c.value ? ` <span class="value-field" style="color:${valueColor(c.price,c.value)}">(€${parseFloat(c.value).toFixed(2)})</span>` : ''}</span>` : (c.value ? `<span class="card-price value-field" style="color:var(--blue2)">€${parseFloat(c.value).toFixed(2)}</span>` : '')}
     </div>
   </div>`;
 }
@@ -3874,6 +3873,12 @@ function cardWorth(c) {
 }
 function hasWorth(c) {
   return !!(c.value || c.price);
+}
+function valueColor(price, value) {
+  const p = parseFloat(price), v = parseFloat(value);
+  if (v > p) return 'var(--green)';
+  if (v < p) return 'var(--red)';
+  return '#ffd60a';
 }
 
 // --- ESC ---
