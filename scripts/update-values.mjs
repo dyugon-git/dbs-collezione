@@ -157,22 +157,24 @@ function pickVariant(card) {
   return nm || variants[0];
 }
 
-// --- 5. Cerca una carta per nome (+ numero, confrontato lato client) su JustTCG ---
+// --- 5. Cerca una carta per nome (+ codice, confrontato lato client) su JustTCG ---
 function baseName(name) {
   // Toglie eventuali sottotitoli dopo i due punti, es. "Son Gohan : Childhood" -> "Son Gohan"
   // (JustTCG potrebbe non usare la stessa sintassi di Trackalo per i sottotitoli)
   return (name || '').split(':')[0].trim();
 }
 
-function normalizeNumber(n) {
-  return String(n || '').replace(/^0+/, '').trim();
+// Normalizza un codice/numero per il confronto: maiuscolo, solo lettere e cifre
+// (toglie trattini, spazi, #, zeri iniziali sui soli numeri restano intatti perché
+// fanno parte del codice, es. "FB02-130" -> "FB02130").
+function normalizeCode(s) {
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 async function searchCard(trackaloCard, slug) {
-  const number = (trackaloCard.code || '').includes('-')
-    ? trackaloCard.code.split('-').slice(1).join('-')
-    : '';
-  const q = encodeURIComponent(baseName(trackaloCard.name) || trackaloCard.code || '');
+  const fullCode = trackaloCard.code || ''; // es. "FB02-130" — su JustTCG il campo "number" sembra usare proprio questo formato completo
+  const suffix = fullCode.includes('-') ? fullCode.split('-').slice(1).join('-') : ''; // es. "130", fallback nel caso qualche gioco usi solo il numero
+  const q = encodeURIComponent(baseName(trackaloCard.name) || fullCode || '');
   const url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=20`;
 
   const data = await fetchJson(url, { headers: { 'x-api-key': JUSTTCG_API_KEY } });
@@ -186,23 +188,29 @@ async function searchCard(trackaloCard, slug) {
   const results = data.data || [];
   if (!results.length) return { match: null, uncertain: false };
 
-  // 1. Preferiamo un risultato il cui numero combacia esattamente con quello della carta
+  // 1. Preferiamo un risultato il cui "number" combacia col codice completo (es. "FB02-130"),
+  //    con fallback sul solo suffisso numerico se il gioco lo usa diversamente
   let candidates = results;
-  if (number) {
-    const exact = results.filter((r) => normalizeNumber(r.number) === normalizeNumber(number));
-    if (exact.length) candidates = exact;
-  }
+  const codeMatches = (r) => {
+    const rn = normalizeCode(r.number);
+    if (!rn) return false;
+    if (rn === normalizeCode(fullCode)) return true;
+    if (suffix && rn === normalizeCode(suffix)) return true;
+    return false;
+  };
+  const exact = results.filter(codeMatches);
+  if (exact.length) candidates = exact;
 
   // 2. Tra i candidati, se ce n'è uno che sembra chiaramente alt-art, lo preferiamo
   //    (il resto della collezione è tutta alt-art, quindi disambiguare così ha senso)
   const altCandidate = candidates.find(
     (r) => looksLikeAltArt(r.name) || looksLikeAltArt(r.rarity) || (r.variants || []).some((v) => looksLikeAltArt(v.printing))
   );
-  if (altCandidate) return { match: altCandidate, uncertain: candidates.length > 1 && !number };
+  if (altCandidate) return { match: altCandidate, uncertain: exact.length === 0 };
 
-  // 3. Altrimenti il primo candidato, segnalato come "incerto" se non avevamo un numero
-  //    per restringere la ricerca o se c'erano più risultati possibili
-  return { match: candidates[0], uncertain: !number || candidates.length > 1 };
+  // 3. Altrimenti il primo candidato, segnalato come "incerto" se non avevamo trovato
+  //    un match esatto sul codice (quindi meno affidabile)
+  return { match: candidates[0], uncertain: exact.length === 0 };
 }
 
 // --- 5. Lookup "in batch" per carte già matchate (fino a 20 per richiesta sul piano free) ---
@@ -300,7 +308,7 @@ async function main() {
       const { match: best, uncertain } = await searchCard(card, slug);
       requestsUsed++;
       if (best) {
-        card.justtcgId = best.id || best.cardId;
+        card.justtcgId = best.cardId || best.id;
         const variant = pickVariant(best);
         if (variant && typeof variant.price === 'number') {
           card.value = round2(variant.price * usdToEur);
