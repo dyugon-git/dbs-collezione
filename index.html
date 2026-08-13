@@ -3865,14 +3865,16 @@ function toast(msg, type) {
   el._t = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
-// --- CARD WORTH (valore di mercato, con fallback sul prezzo di acquisto) ---
+// --- CARD WORTH (valore di mercato, con fallback sul prezzo di acquisto — solo se il flag "Mostra valori" è attivo) ---
 function cardWorth(c) {
-  if (c.value !== undefined && c.value !== null && c.value !== '') return parseFloat(c.value) || 0;
+  const useValue = document.body.classList.contains('show-values');
+  if (useValue && c.value !== undefined && c.value !== null && c.value !== '') return parseFloat(c.value) || 0;
   if (c.price !== undefined && c.price !== null && c.price !== '') return parseFloat(c.price) || 0;
   return 0;
 }
 function hasWorth(c) {
-  return !!(c.value || c.price);
+  const useValue = document.body.classList.contains('show-values');
+  return !!((useValue && c.value) || c.price);
 }
 function valueColor(price, value) {
   const p = parseFloat(price), v = parseFloat(value);
@@ -4288,21 +4290,32 @@ function renderStats() {
   const missing = gameCards.filter(c => c.status === 'missing');
   const totalVal = owned.reduce((s,c) => s + cardWorth(c), 0);
   const missingVal = missing.reduce((s,c) => s + cardWorth(c), 0);
+  const totalSpent = owned.reduce((s,c) => s + (parseFloat(c.price)||0), 0);
   const totalCards = gameCards.length;
 
   // KPIs
-  document.getElementById('kpi-row').innerHTML = [
-    { label:'Valore posseduto', value:'€'+totalVal.toFixed(2),    sub: owned.length+' carte', color:'' },
-    { label:'Costo stimato mancanti', value:'€'+missingVal.toFixed(2), sub: missing.length+' carte', color:'color:var(--red)' },
-    { label:'Espansioni totali', value: [...new Set(cards.map(c=>c.set).filter(Boolean))].length, sub: '', color:'' },
-    { label:'Carte totali',    value: totalCards,                  sub: '', color:'' },
-    { label:'✅ Possedute',     value: owned.length,               sub: totalCards ? Math.round(owned.length/totalCards*100)+'%' : '', color:'color:var(--green)' },
-    { label:'❌ Mancanti',      value: missing.length,             sub: totalCards ? Math.round(missing.length/totalCards*100)+'%' : '', color:'color:var(--text3)' },
-  ].map(k => `<div class="kpi-card">
-    <div class="kpi-label">${k.label}</div>
-    <div class="kpi-value" style="${k.color}">${k.value}</div>
-    ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ''}
-  </div>`).join('');
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">Valore</div>
+      <div class="kpi-value" style="color:var(--green)">€${totalVal.toFixed(2)}</div>
+      <div class="kpi-sub" style="font-size:11px">(€${totalSpent.toFixed(2)} spesi)</div>
+      <div class="kpi-sub">${owned.length} carte</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Costo mancanti</div>
+      <div class="kpi-value" style="color:var(--red)">€${missingVal.toFixed(2)}</div>
+      <div class="kpi-sub">${missing.length} carte</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Espansioni</div>
+      <div class="kpi-value">${[...new Set(gameCards.map(c=>c.set).filter(Boolean))].length}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Carte totali</div>
+      <div class="kpi-value">${totalCards} (<span style="color:var(--green)">${owned.length}</span>/<span style="color:var(--red)">${missing.length}</span>)</div>
+      <div class="kpi-sub">(possedute/mancanti)</div>
+    </div>
+  `;
 
   // Populate set filters and show/hide based on group='rarity' + we want per-set drill-down
   populateSetFilter('left-filter-set', 'left');
