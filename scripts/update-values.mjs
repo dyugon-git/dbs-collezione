@@ -21,6 +21,8 @@ const GIST_ID = process.env.GIST_ID;
 const JUSTTCG_API_KEY = process.env.JUSTTCG_API_KEY;
 const GAME_FILTER = process.env.GAME_FILTER || 'all';
 const REMATCH = process.env.REMATCH === 'true';
+const DEBUG = process.env.DEBUG === 'true';
+let debugCallsLeft = 3; // stampa la risposta grezza delle prime 3 ricerche, solo se DEBUG=true
 
 const COLLECTION_FILENAME = 'dbsfw_collection.json';
 const JUSTTCG_BASE = 'https://api.justtcg.com/v1';
@@ -113,39 +115,94 @@ async function buildGameSlugMap() {
   return map;
 }
 
-// --- 3. Scegli la variante "migliore" (Near Mint / Normal se possibile) ---
+// --- 3. Riconosci se una stringa indica una versione "alt art" / speciale ---
+const ALT_ART_KEYWORDS = [
+  'alt art', 'alternate art', 'alt-art', 'special art', 'parallel',
+  'special illustration', 'full art', 'secret', 'sar', ' ar ', 'gold stamped',
+  'holo rare', 'textured',
+];
+function looksLikeAltArt(str) {
+  const s = ` ${(str || '').toLowerCase()} `;
+  return ALT_ART_KEYWORDS.some((kw) => s.includes(kw));
+}
+
+// --- 4. Scegli la variante "migliore" ---
+// Nota: la collezione di questo utente contiene SOLO versioni "alt art" delle
+// carte, quindi va sempre preferita — se esplicitamente presente — una
+// variante/printing che sembra alt art rispetto a quella "Normal" di base.
 function pickVariant(card) {
   const variants = card.variants || [];
   if (!variants.length) return null;
-  const nmNormal = variants.find(
-    (v) => (v.condition || '').toLowerCase().includes('near mint') &&
-           (v.printing || '').toLowerCase() === 'normal'
+
+  // 1. Variante alt-art + Near Mint
+  const altNm = variants.find(
+    (v) => looksLikeAltArt(v.printing) && (v.condition || '').toLowerCase().includes('near mint')
   );
-  if (nmNormal) return nmNormal;
+  if (altNm) return altNm;
+
+  // 2. Qualunque variante alt-art
+  const alt = variants.find((v) => looksLikeAltArt(v.printing));
+  if (alt) return alt;
+
+  // 3. Se il CARD stesso (non solo la variante) sembra alt-art (es. rarity/set nel nome),
+  //    va bene anche la variante Normal, perché l'alt-art è già a livello di carta.
+  const cardLooksAlt = looksLikeAltArt(card.name) || looksLikeAltArt(card.rarity) || looksLikeAltArt(card.set);
+  const nmNormal = variants.find(
+    (v) => (v.condition || '').toLowerCase().includes('near mint') && (v.printing || '').toLowerCase() === 'normal'
+  );
+  if (cardLooksAlt && nmNormal) return nmNormal;
+
+  // 4. Fallback: prima variante Near Mint disponibile, altrimenti la prima in assoluto
   const nm = variants.find((v) => (v.condition || '').toLowerCase().includes('near mint'));
-  if (nm) return nm;
-  return variants[0];
+  return nm || variants[0];
 }
 
-// --- 4. Cerca una carta per nome + numero su JustTCG ---
+// --- 5. Cerca una carta per nome (+ numero, confrontato lato client) su JustTCG ---
+function baseName(name) {
+  // Toglie eventuali sottotitoli dopo i due punti, es. "Son Gohan : Childhood" -> "Son Gohan"
+  // (JustTCG potrebbe non usare la stessa sintassi di Trackalo per i sottotitoli)
+  return (name || '').split(':')[0].trim();
+}
+
+function normalizeNumber(n) {
+  return String(n || '').replace(/^0+/, '').trim();
+}
+
 async function searchCard(trackaloCard, slug) {
   const number = (trackaloCard.code || '').includes('-')
     ? trackaloCard.code.split('-').slice(1).join('-')
     : '';
-  const q = encodeURIComponent(trackaloCard.name || trackaloCard.code || '');
-  let url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=5`;
-  if (number) url += `&number=${encodeURIComponent(number)}`;
+  const q = encodeURIComponent(baseName(trackaloCard.name) || trackaloCard.code || '');
+  const url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=20`;
 
   const data = await fetchJson(url, { headers: { 'x-api-key': JUSTTCG_API_KEY } });
-  const results = data.data || [];
-  if (!results.length) return null;
 
-  // Se più risultati, preferiamo quello col numero che combacia esattamente
-  if (number) {
-    const exact = results.find((r) => String(r.number || '').replace(/^0+/, '') === number.replace(/^0+/, ''));
-    if (exact) return exact;
+  if (DEBUG && debugCallsLeft > 0) {
+    debugCallsLeft--;
+    log(`[DEBUG] URL: ${url}`);
+    log(`[DEBUG] Risposta grezza: ${JSON.stringify(data).slice(0, 2000)}`);
   }
-  return results[0];
+
+  const results = data.data || [];
+  if (!results.length) return { match: null, uncertain: false };
+
+  // 1. Preferiamo un risultato il cui numero combacia esattamente con quello della carta
+  let candidates = results;
+  if (number) {
+    const exact = results.filter((r) => normalizeNumber(r.number) === normalizeNumber(number));
+    if (exact.length) candidates = exact;
+  }
+
+  // 2. Tra i candidati, se ce n'è uno che sembra chiaramente alt-art, lo preferiamo
+  //    (il resto della collezione è tutta alt-art, quindi disambiguare così ha senso)
+  const altCandidate = candidates.find(
+    (r) => looksLikeAltArt(r.name) || looksLikeAltArt(r.rarity) || (r.variants || []).some((v) => looksLikeAltArt(v.printing))
+  );
+  if (altCandidate) return { match: altCandidate, uncertain: candidates.length > 1 && !number };
+
+  // 3. Altrimenti il primo candidato, segnalato come "incerto" se non avevamo un numero
+  //    per restringere la ricerca o se c'erano più risultati possibili
+  return { match: candidates[0], uncertain: !number || candidates.length > 1 };
 }
 
 // --- 5. Lookup "in batch" per carte già matchate (fino a 20 per richiesta sul piano free) ---
@@ -202,6 +259,7 @@ async function main() {
   let requestsUsed = 0;
   let updatedCount = 0;
   const failedSearches = [];
+  const uncertainMatches = [];
   const skippedNoSlug = [];
 
   // 4. Aggiorna le carte già matchate, in batch da 20
@@ -239,7 +297,7 @@ async function main() {
       continue;
     }
     try {
-      const best = await searchCard(card, slug);
+      const { match: best, uncertain } = await searchCard(card, slug);
       requestsUsed++;
       if (best) {
         card.justtcgId = best.id || best.cardId;
@@ -249,6 +307,7 @@ async function main() {
           updatedCount++;
         }
         card.justtcgSearchFailedAt = null;
+        if (uncertain) uncertainMatches.push(`${card.code} (${card.name}) -> "${best.name}" #${best.number || '?'}`);
       } else {
         card.justtcgSearchFailedAt = Date.now();
         failedSearches.push(`${card.code} (${card.name})`);
@@ -275,6 +334,9 @@ async function main() {
 
   // 7. Riepilogo
   log(`Fatto. Richieste JustTCG usate: ${requestsUsed}. Carte aggiornate: ${updatedCount}.`);
+  if (uncertainMatches.length) {
+    log(`Match incerti da verificare a mano (${uncertainMatches.length}):`, uncertainMatches.join(' | '));
+  }
   if (failedSearches.length) {
     log(`Carte non trovate (${failedSearches.length}):`, failedSearches.join(', '));
   }
@@ -291,6 +353,7 @@ async function main() {
       `- Richieste JustTCG usate: ${requestsUsed} / ${DAILY_BUDGET}`,
       `- Carte aggiornate: ${updatedCount}`,
       `- Ancora da matchare: ${unmatched.length - (requestsUsed - chunk(matched, 20).length)}`,
+      uncertainMatches.length ? `- Match incerti (verifica a mano): ${uncertainMatches.join(' | ')}` : '',
       failedSearches.length ? `- Non trovate: ${failedSearches.join(', ')}` : '',
     ].join('\n');
     await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, summary + '\n');
