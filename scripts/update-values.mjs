@@ -146,7 +146,9 @@ function pickVariant(card) {
 
   // 3. Se il CARD stesso (non solo la variante) sembra alt-art (es. rarity/set nel nome),
   //    va bene anche la variante Normal, perché l'alt-art è già a livello di carta.
-  const cardLooksAlt = looksLikeAltArt(card.name) || looksLikeAltArt(card.rarity) || looksLikeAltArt(card.set);
+  const cardIdStr = `${card.cardId || ''} ${card.id || ''}`.toLowerCase();
+  const cardLooksAlt = cardIdStr.includes('alternate-art') || cardIdStr.includes('alt-art') ||
+    looksLikeAltArt(card.name) || looksLikeAltArt(card.rarity) || looksLikeAltArt(card.set);
   const nmNormal = variants.find(
     (v) => (v.condition || '').toLowerCase().includes('near mint') && (v.printing || '').toLowerCase() === 'normal'
   );
@@ -175,7 +177,9 @@ async function searchCard(trackaloCard, slug) {
   const fullCode = trackaloCard.code || ''; // es. "FB02-130" — su JustTCG il campo "number" sembra usare proprio questo formato completo
   const suffix = fullCode.includes('-') ? fullCode.split('-').slice(1).join('-') : ''; // es. "130", fallback nel caso qualche gioco usi solo il numero
   const q = encodeURIComponent(baseName(trackaloCard.name) || fullCode || '');
-  const url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=20`;
+  // limit alto per aumentare le probabilità che la carta col codice giusto sia tra i risultati
+  // (nomi comuni tipo "Son Goku" o "Zamasu" ricorrono su tante carte diverse dello stesso set/gioco)
+  const url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=50`;
 
   const data = await fetchJson(url, { headers: { 'x-api-key': JUSTTCG_API_KEY } });
 
@@ -188,9 +192,12 @@ async function searchCard(trackaloCard, slug) {
   const results = data.data || [];
   if (!results.length) return { match: null, uncertain: false };
 
-  // 1. Preferiamo un risultato il cui "number" combacia col codice completo (es. "FB02-130"),
-  //    con fallback sul solo suffisso numerico se il gioco lo usa diversamente
-  let candidates = results;
+  // Il codice (es. "FB02-044") DEVE combaciare esattamente — niente ripieghi su un
+  // risultato con lo stesso nome ma codice diverso (es. "Zamasu" FB02-043 invece di
+  // "Zamasu : Fused" FB02-044). Se non troviamo un codice esatto, meglio non
+  // assegnare nulla piuttosto che rischiare di prendere la carta sbagliata:
+  // così, se sbagliamo qualcosa, sbagliamo al massimo tra due versioni/stampe
+  // della STESSA carta (es. alt art vs normale), mai tra carte diverse.
   const codeMatches = (r) => {
     const rn = normalizeCode(r.number);
     if (!rn) return false;
@@ -199,18 +206,28 @@ async function searchCard(trackaloCard, slug) {
     return false;
   };
   const exact = results.filter(codeMatches);
-  if (exact.length) candidates = exact;
+  if (!exact.length) return { match: null, uncertain: false };
+  const candidates = exact;
 
-  // 2. Tra i candidati, se ce n'è uno che sembra chiaramente alt-art, lo preferiamo
-  //    (il resto della collezione è tutta alt-art, quindi disambiguare così ha senso)
+  // Tra i candidati con codice esatto, cerchiamo la stampa alt-art. Il segnale più
+  // affidabile è "alternate-art" dentro all'id/slug della carta stessa (es.
+  // "...-fb02-130-alternate-art-sr"), quindi lo controlliamo per primo; se non
+  // c'è, ripieghiamo sul controllo più debole su nome/rarità/printing.
+  const idHasAltArt = (r) => {
+    const idStr = `${r.cardId || ''} ${r.id || ''}`.toLowerCase();
+    return idStr.includes('alternate-art') || idStr.includes('alt-art');
+  };
+  const altCandidateById = candidates.find(idHasAltArt);
+  if (altCandidateById) return { match: altCandidateById, uncertain: false };
+
   const altCandidate = candidates.find(
     (r) => looksLikeAltArt(r.name) || looksLikeAltArt(r.rarity) || (r.variants || []).some((v) => looksLikeAltArt(v.printing))
   );
-  if (altCandidate) return { match: altCandidate, uncertain: exact.length === 0 };
+  if (altCandidate) return { match: altCandidate, uncertain: candidates.length > 1 };
 
-  // 3. Altrimenti il primo candidato, segnalato come "incerto" se non avevamo trovato
-  //    un match esatto sul codice (quindi meno affidabile)
-  return { match: candidates[0], uncertain: exact.length === 0 };
+  // Altrimenti il primo tra quelli con codice esatto — il codice è comunque garantito
+  // corretto, "incerto" qui significa solo che non siamo sicuri sia la stampa alt-art
+  return { match: candidates[0], uncertain: true };
 }
 
 // --- 5. Lookup "in batch" per carte già matchate (fino a 20 per richiesta sul piano free) ---
