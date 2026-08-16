@@ -21,6 +21,7 @@ const GIST_ID = process.env.GIST_ID;
 const JUSTTCG_API_KEY = process.env.JUSTTCG_API_KEY;
 const GAME_FILTER = process.env.GAME_FILTER || 'all';
 const REMATCH = process.env.REMATCH === 'true';
+const ONLY_MATCHED = process.env.ONLY_MATCHED === 'true'; // se true, salta del tutto la ricerca: aggiorna solo le carte che hanno già un justtcgId
 const DEBUG = process.env.DEBUG === 'true';
 let debugCallsLeft = 3; // stampa la risposta grezza delle prime 3 ricerche, solo se DEBUG=true
 
@@ -254,7 +255,7 @@ async function main() {
     throw new Error('Mancano variabili d\'ambiente: GIST_TOKEN, GIST_ID o JUSTTCG_API_KEY');
   }
 
-  log(`Avvio. Filtro gioco: ${GAME_FILTER}. Rematch forzato: ${REMATCH}.`);
+  log(`Avvio. Filtro gioco: ${GAME_FILTER}. Rematch forzato: ${REMATCH}. Solo carte già matchate: ${ONLY_MATCHED}.`);
 
   // 1. Leggi il Gist
   const gist = await fetchJson(`https://api.github.com/gists/${GIST_ID}`, {
@@ -265,15 +266,17 @@ async function main() {
   const cards = JSON.parse(file.content);
   log(`Carte totali nel Gist: ${cards.length}`);
 
-  // 2. Setup: cambio valuta + mappa giochi
-  const [usdToEur, gameSlugMap] = await Promise.all([getUsdToEurRate(), buildGameSlugMap()]);
+  // 2. Setup: cambio valuta + mappa giochi (la mappa giochi serve solo per la ricerca,
+  //    la saltiamo se lavoriamo solo sulle carte già matchate, per risparmiare una richiesta)
+  const usdToEur = await getUsdToEurRate();
+  const gameSlugMap = ONLY_MATCHED ? {} : await buildGameSlugMap();
 
   // 3. Seleziona le carte su cui lavorare
   const inScope = cards.filter((c) => GAME_FILTER === 'all' || (c.game || 'Dragon Ball') === GAME_FILTER);
 
   const matched = inScope.filter((c) => c.justtcgId && !REMATCH);
   const RETRY_AFTER_MS = 7 * 24 * 3600 * 1000; // ricontrolla le carte non trovate dopo 7 giorni
-  const unmatched = inScope.filter((c) => {
+  const unmatched = ONLY_MATCHED ? [] : inScope.filter((c) => {
     if (REMATCH) return true;
     if (c.justtcgId) return false;
     if (c.justtcgSearchFailedAt && Date.now() - c.justtcgSearchFailedAt < RETRY_AFTER_MS) return false;

@@ -29,6 +29,11 @@ on:
         required: false
         default: false
         type: boolean
+      only_matched:
+        description: 'Aggiorna solo le carte che hanno già un ID JustTCG salvato (nessuna ricerca, zero rischio di sbagliare)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   update-values:
@@ -50,4 +55,5 @@ jobs:
           GAME_FILTER: ${{ github.event.inputs.game || 'all' }}
           REMATCH: ${{ github.event.inputs.rematch || 'false' }}
           DEBUG: ${{ github.event.inputs.debug || 'false' }}
+          ONLY_MATCHED: ${{ github.event.inputs.only_matched || 'true' }}
         run: node scripts/update-values.mjs
