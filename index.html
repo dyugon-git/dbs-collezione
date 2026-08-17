@@ -1836,6 +1836,10 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <label>Link mercato <span style="font-weight:400;color:var(--text3);font-size:11px">(URL per acquisto/vendita)</span></label>
       <input type="text" id="f-url" placeholder="https://www.cardmarket.com/…">
     </div>
+    <div class="form-field">
+      <label>ID JustTCG <span style="font-weight:400;color:var(--text3);font-size:11px">(slug "v1 id" dalla pagina della carta su justtcg.com, per l'aggiornamento automatico dei valori)</span></label>
+      <input type="text" id="f-justtcgid" placeholder="es. dragon-ball-super-fusion-world-blazing-aura-bulma-fb02-130-alternate-art-sr">
+    </div>
 
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Annulla</button>
@@ -2281,6 +2285,7 @@ function openModal(id) {
   document.getElementById('f-price').value  = card ? (card.price||'') : '';
   document.getElementById('f-value').value  = card ? (card.value||'') : '';
   document.getElementById('f-url').value    = card ? (card.url||'') : '';
+  document.getElementById('f-justtcgid').value = card ? (card.justtcgId||'') : '';
   updateImgPreview();
   document.getElementById('modal-bg').classList.add('open');
   setTimeout(()=>document.getElementById('f-code').focus(), 100);
@@ -2306,6 +2311,7 @@ function saveCard() {
     price:  document.getElementById('f-price').value ? parseFloat(document.getElementById('f-price').value) : null,
     value:  document.getElementById('f-value').value ? parseFloat(document.getElementById('f-value').value) : null,
     url:    document.getElementById('f-url').value.trim() || null,
+    justtcgId: document.getElementById('f-justtcgid').value.trim() || null,
   };
 
   if (editingId) {
