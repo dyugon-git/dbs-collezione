@@ -19,18 +19,8 @@ on:
           - 'Digimon'
           - 'Pokémon'
           - 'One Piece'
-      rematch:
-        description: 'Ricerca di nuovo anche le carte già matchate (ignora justtcgId salvato)'
-        required: false
-        default: false
-        type: boolean
       debug:
-        description: 'Stampa nei log la risposta grezza delle prime ricerche (per debug)'
-        required: false
-        default: false
-        type: boolean
-      only_matched:
-        description: 'Aggiorna solo le carte che hanno già un ID JustTCG salvato (nessuna ricerca, zero rischio di sbagliare)'
+        description: 'Stampa nei log la risposta grezza del primo batch (per debug)'
         required: false
         default: false
         type: boolean
@@ -53,7 +43,5 @@ jobs:
           GIST_ID: ${{ secrets.GIST_ID }}
           JUSTTCG_API_KEY: ${{ secrets.JUSTTCG_API_KEY }}
           GAME_FILTER: ${{ github.event.inputs.game || 'all' }}
-          REMATCH: ${{ github.event.inputs.rematch || 'false' }}
           DEBUG: ${{ github.event.inputs.debug || 'false' }}
-          ONLY_MATCHED: ${{ github.event.inputs.only_matched || 'true' }}
         run: node scripts/update-values.mjs
