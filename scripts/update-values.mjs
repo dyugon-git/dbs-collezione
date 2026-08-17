@@ -177,10 +177,13 @@ function normalizeCode(s) {
 async function searchCard(trackaloCard, slug) {
   const fullCode = trackaloCard.code || ''; // es. "FB02-130" — su JustTCG il campo "number" sembra usare proprio questo formato completo
   const suffix = fullCode.includes('-') ? fullCode.split('-').slice(1).join('-') : ''; // es. "130", fallback nel caso qualche gioco usi solo il numero
-  const q = encodeURIComponent(baseName(trackaloCard.name) || fullCode || '');
-  // limit alto per aumentare le probabilità che la carta col codice giusto sia tra i risultati
-  // (nomi comuni tipo "Son Goku" o "Zamasu" ricorrono su tante carte diverse dello stesso set/gioco)
-  const url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=50`;
+  const nameOnly = baseName(trackaloCard.name) || fullCode || '';
+  // JustTCG supporta ricerche combinate "nome numero" nel campo q e le usa per
+  // affinare i risultati — utile perché il piano free limita a 20 risultati per
+  // richiesta, e nomi comuni (Son Goku, Vegeta...) ne hanno molti di più in totale.
+  const qText = suffix ? `${nameOnly} ${suffix}` : nameOnly;
+  const q = encodeURIComponent(qText);
+  const url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=20`;
 
   const data = await fetchJson(url, { headers: { 'x-api-key': JUSTTCG_API_KEY } });
 
