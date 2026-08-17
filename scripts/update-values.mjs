@@ -181,7 +181,10 @@ async function searchCard(trackaloCard, slug) {
   // JustTCG supporta ricerche combinate "nome numero" nel campo q e le usa per
   // affinare i risultati — utile perché il piano free limita a 20 risultati per
   // richiesta, e nomi comuni (Son Goku, Vegeta...) ne hanno molti di più in totale.
-  const qText = suffix ? `${nameOnly} ${suffix}` : nameOnly;
+  // La ricerca combinata "nome numero" (es. "Vegeta 020") risulta restituire zero
+  // risultati su questo catalogo — torniamo alla ricerca per solo nome, e il codice
+  // esatto lo verifichiamo comunque lato client sui risultati (vedi sotto).
+  const qText = nameOnly;
   const q = encodeURIComponent(qText);
   const url = `${JUSTTCG_BASE}/cards?game=${encodeURIComponent(slug)}&q=${q}&limit=20`;
 
