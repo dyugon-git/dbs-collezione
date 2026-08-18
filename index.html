@@ -2115,7 +2115,7 @@ function cardThumbHTML(c) {
         </div>
       </div>
       ${c.name  ? `<span class="card-name">${esc(c.name)}</span>`                      : ''}
-      ${c.price ? `<span class="card-price">€${parseFloat(c.price).toFixed(2)}${c.value ? ` <span class="value-field" style="color:${valueColor(c.price,c.value)}">(€${parseFloat(c.value).toFixed(2)})</span>` : ''}</span>` : (c.value ? `<span class="card-price value-field" style="color:var(--blue2)">€${parseFloat(c.value).toFixed(2)}</span>` : '')}
+      ${hasNum(c.price) ? `<span class="card-price">€${parseFloat(c.price).toFixed(2)}${hasNum(c.value) ? ` <span class="value-field" style="color:${valueColor(c.price,c.value)}">(€${parseFloat(c.value).toFixed(2)})</span>` : ''}</span>` : (hasNum(c.value) ? `<span class="card-price value-field" style="color:var(--blue2)">€${parseFloat(c.value).toFixed(2)}</span>` : '')}
     </div>
   </div>`;
 }
@@ -2157,7 +2157,7 @@ function buildDetailHTML(card) {
       </div>
       <div class="detail-row value-field">
         <span class="detail-label">Valore di mercato</span>
-        <span class="detail-value">${card.value ? '€'+parseFloat(card.value).toFixed(2) : '—'}${(card.value && card.price) ? (() => { const d = parseFloat(card.value) - parseFloat(card.price); const pct = parseFloat(card.price) ? (d/parseFloat(card.price)*100) : 0; const col = d > 0 ? 'var(--green)' : (d < 0 ? 'var(--red)' : 'var(--text3)'); const sign = d > 0 ? '+' : ''; return ` <span style="font-size:12px;font-weight:600;color:${col}">(${sign}€${d.toFixed(2)} / ${sign}${pct.toFixed(0)}%)</span>`; })() : ''}</span>
+        <span class="detail-value">${hasNum(card.value) ? '€'+parseFloat(card.value).toFixed(2) : '—'}${(hasNum(card.value) && hasNum(card.price)) ? (() => { const d = parseFloat(card.value) - parseFloat(card.price); const p = parseFloat(card.price); const col = d > 0 ? 'var(--green)' : (d < 0 ? 'var(--red)' : 'var(--text3)'); const sign = d > 0 ? '+' : ''; const pctStr = p ? ` / ${sign}${(d/p*100).toFixed(0)}%` : ''; return ` <span style="font-size:12px;font-weight:600;color:${col}">(${sign}€${d.toFixed(2)}${pctStr})</span>`; })() : ''}</span>
       </div>
       <div class="detail-actions">
         <button class="btn" style="flex:1" onclick="openModal('${card.id}')">
@@ -3881,6 +3881,11 @@ function cardWorth(c) {
 function hasWorth(c) {
   const useValue = document.body.classList.contains('show-values');
   return !!((useValue && c.value) || c.price);
+}
+// Vero se x è un numero valido impostato (0 incluso) - a differenza di un semplice
+// controllo di verità in JS, dove 0 risulterebbe "falso" e verrebbe scambiato per "non impostato"
+function hasNum(x) {
+  return x !== undefined && x !== null && x !== '';
 }
 function valueColor(price, value) {
   const p = parseFloat(price), v = parseFloat(value);
