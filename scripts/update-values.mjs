@@ -6,15 +6,20 @@
 // carta su justtcg.com (campo "slug (v1 id)"), così non c'è rischio di
 // prendere la versione sbagliata (es. alt art vs normale).
 //
+// Aggiorna più "profili" nella stessa run: il tuo Gist + fino a 2 Gist di
+// amici (se hai le loro credenziali), tutti con la stessa chiave JustTCG.
+//
 // Variabili d'ambiente richieste:
-//   GIST_TOKEN       token GitHub con permesso "gist" (lo stesso tipo usato dall'app)
-//   GIST_ID          id del Gist di Trackalo
-//   JUSTTCG_API_KEY  chiave API di justtcg.com (piano free va bene)
-//   GAME_FILTER      'all' oppure uno tra 'Dragon Ball' | 'Digimon' | 'Pokémon' | 'One Piece'
-//   DEBUG            'true' per stampare nei log la risposta grezza del primo batch
+//   GIST_TOKEN          token GitHub (permesso "gist") del tuo account
+//   GIST_ID              id del tuo Gist
+//   JUSTTCG_API_KEY       chiave API di justtcg.com (piano free va bene, condivisa tra tutti i profili)
+//   GAME_FILTER           'all' oppure uno tra 'Dragon Ball' | 'Digimon' | 'Pokémon' | 'One Piece'
+//   DEBUG                 'true' per stampare nei log la risposta grezza del primo batch
+//
+// Opzionali, per aggiornare anche le collezioni di amici:
+//   FRIEND1_GIST_TOKEN, FRIEND1_GIST_ID, FRIEND1_LABEL (facoltativa, solo per i log)
+//   FRIEND2_GIST_TOKEN, FRIEND2_GIST_ID, FRIEND2_LABEL
 
-const GIST_TOKEN = process.env.GIST_TOKEN;
-const GIST_ID = process.env.GIST_ID;
 const JUSTTCG_API_KEY = process.env.JUSTTCG_API_KEY;
 const GAME_FILTER = process.env.GAME_FILTER || 'all';
 const DEBUG = process.env.DEBUG === 'true';
@@ -22,8 +27,29 @@ const DEBUG = process.env.DEBUG === 'true';
 const COLLECTION_FILENAME = 'dbsfw_collection.json';
 const JUSTTCG_BASE = 'https://api.justtcg.com/v1';
 
-// Free plan: 10 richieste al minuto -> aspettiamo un po' più di 6s tra un batch e l'altro.
+// Free plan JustTCG: 10 richieste al minuto -> aspettiamo un po' più di 6s tra un batch e l'altro.
 const SLEEP_MS = 6500;
+// Budget TOTALE di richieste JustTCG per l'intera run, condiviso tra tutti i profili
+// (tenuto sotto il limite reale di 100/giorno, per margine di sicurezza).
+const DAILY_BUDGET = 90;
+
+const PROFILES = [
+  { label: 'Tu', token: process.env.GIST_TOKEN, gistId: process.env.GIST_ID },
+];
+if (process.env.FRIEND1_GIST_TOKEN && process.env.FRIEND1_GIST_ID) {
+  PROFILES.push({
+    label: process.env.FRIEND1_LABEL || 'Amico 1',
+    token: process.env.FRIEND1_GIST_TOKEN,
+    gistId: process.env.FRIEND1_GIST_ID,
+  });
+}
+if (process.env.FRIEND2_GIST_TOKEN && process.env.FRIEND2_GIST_ID) {
+  PROFILES.push({
+    label: process.env.FRIEND2_LABEL || 'Amico 2',
+    token: process.env.FRIEND2_GIST_TOKEN,
+    gistId: process.env.FRIEND2_GIST_ID,
+  });
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -56,7 +82,7 @@ async function fetchJson(url, opts = {}) {
   return json;
 }
 
-// --- Cambio USD -> EUR (Frankfurter, gratis, senza chiave) ---
+// --- Cambio USD -> EUR (Frankfurter, gratis, senza chiave) — una volta sola per tutta la run ---
 async function getUsdToEurRate() {
   const FALLBACK_RATE = 0.92;
   try {
@@ -72,7 +98,6 @@ async function getUsdToEurRate() {
 }
 
 // --- Scegli la variante "migliore" tra quelle della carta trovata ---
-// (di solito una sola, ma alcune carte hanno più condizioni: Near Mint, Lightly Played, ecc.)
 const ALT_ART_KEYWORDS = [
   'alt art', 'alternate art', 'alt-art', 'special art', 'parallel',
   'special illustration', 'full art', 'secret', 'sar', ' ar ', 'gold stamped',
@@ -109,45 +134,58 @@ async function batchLookup(cardIds) {
   return data.data || [];
 }
 
-// --- MAIN ---
-async function main() {
-  if (!GIST_TOKEN || !GIST_ID || !JUSTTCG_API_KEY) {
-    throw new Error('Mancano variabili d\'ambiente: GIST_TOKEN, GIST_ID o JUSTTCG_API_KEY');
+// --- Aggiorna UN profilo (un Gist). Ritorna quante richieste JustTCG ha usato. ---
+async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
+  const { label, token, gistId } = profile;
+  log(`--- Profilo: ${label} ---`);
+
+  if (!token || !gistId) {
+    log(`${label}: token o Gist ID mancanti, salto.`);
+    return 0;
   }
 
-  log(`Avvio. Filtro gioco: ${GAME_FILTER}.`);
+  let requestsUsed = 0;
 
   // 1. Leggi il Gist
-  const gist = await fetchJson(`https://api.github.com/gists/${GIST_ID}`, {
-    headers: { Authorization: `token ${GIST_TOKEN}`, 'User-Agent': 'trackalo-price-updater' },
-  });
+  let gist;
+  try {
+    gist = await fetchJson(`https://api.github.com/gists/${gistId}`, {
+      headers: { Authorization: `token ${token}`, 'User-Agent': 'trackalo-price-updater' },
+    });
+  } catch (err) {
+    log(`${label}: errore leggendo il Gist:`, err.message);
+    return 0;
+  }
   const file = gist.files[COLLECTION_FILENAME];
-  if (!file) throw new Error(`File ${COLLECTION_FILENAME} non trovato nel Gist`);
+  if (!file) {
+    log(`${label}: file ${COLLECTION_FILENAME} non trovato nel Gist, salto.`);
+    return 0;
+  }
   const cards = JSON.parse(file.content);
-  log(`Carte totali nel Gist: ${cards.length}`);
+  log(`${label}: carte totali nel Gist: ${cards.length}`);
 
-  // 2. Cambio valuta
-  const usdToEur = await getUsdToEurRate();
-
-  // 3. Seleziona le carte da aggiornare: solo quelle con justtcgId impostato
+  // 2. Seleziona le carte da aggiornare: solo quelle con justtcgId impostato
   const inScope = cards.filter((c) => GAME_FILTER === 'all' || (c.game || 'Dragon Ball') === GAME_FILTER);
   const withId = inScope.filter((c) => c.justtcgId);
   const withoutId = inScope.length - withId.length;
-  log(`In ambito: ${inScope.length} (con ID: ${withId.length}, senza ID - ignorate: ${withoutId})`);
+  log(`${label}: in ambito ${inScope.length} (con ID: ${withId.length}, senza ID - ignorate: ${withoutId})`);
 
-  let requestsUsed = 0;
   let updatedCount = 0;
   const notFound = [];
-  let debugPrinted = false;
 
   for (const group of chunk(withId, 20)) {
+    if (requestsUsed + requestBudgetLeft.used >= DAILY_BUDGET) {
+      log(`${label}: budget condiviso esaurito, il resto delle carte verrà ritentato domani.`);
+      break;
+    }
     try {
       const results = await batchLookup(group.map((c) => c.justtcgId));
       requestsUsed++;
+      requestBudgetLeft.used++;
 
-      if (DEBUG && !debugPrinted) {
-        debugPrinted = true;
-        log(`[DEBUG] Risposta grezza batch: ${JSON.stringify(results).slice(0, 2000)}`);
+      if (DEBUG && !debugState.printed) {
+        debugState.printed = true;
+        log(`[DEBUG] Risposta grezza batch (${label}): ${JSON.stringify(results).slice(0, 2000)}`);
       }
 
       for (const card of group) {
@@ -165,46 +203,79 @@ async function main() {
         updatedCount++;
       }
     } catch (err) {
-      log('Errore nel batch lookup:', err.message);
+      log(`${label}: errore nel batch lookup:`, err.message);
       group.forEach((card) => notFound.push(`${card.code} (${card.name}) - errore: ${err.message}`));
     }
     await sleep(SLEEP_MS);
   }
 
-  // 4. Salva solo il file della collezione sul Gist (non tocca budget/friends/album)
-  await fetchJson(`https://api.github.com/gists/${GIST_ID}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `token ${GIST_TOKEN}`,
-      'User-Agent': 'trackalo-price-updater',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      files: { [COLLECTION_FILENAME]: { content: JSON.stringify(cards, null, 2) } },
-    }),
-  });
+  // 3. Salva solo il file della collezione sul Gist (non tocca budget/friends/album)
+  if (updatedCount > 0) {
+    try {
+      await fetchJson(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `token ${token}`,
+          'User-Agent': 'trackalo-price-updater',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          files: { [COLLECTION_FILENAME]: { content: JSON.stringify(cards, null, 2) } },
+        }),
+      });
+    } catch (err) {
+      log(`${label}: errore salvando sul Gist:`, err.message);
+    }
+  }
 
-  // 5. Riepilogo
-  log(`Fatto. Richieste JustTCG usate: ${requestsUsed}. Carte aggiornate: ${updatedCount}.`);
-  if (notFound.length) {
-    log(`Problemi (${notFound.length}):`, notFound.join(' | '));
+  log(`${label}: fatto. Carte aggiornate: ${updatedCount}.`);
+  if (notFound.length) log(`${label}: problemi (${notFound.length}):`, notFound.join(' | '));
+
+  return { requestsUsed, updatedCount, withIdCount: withId.length, withoutId, notFound };
+}
+
+// --- MAIN ---
+async function main() {
+  if (!JUSTTCG_API_KEY) {
+    throw new Error('Manca la variabile d\'ambiente JUSTTCG_API_KEY');
   }
-  if (withoutId > 0) {
-    log(`${withoutId} carte ignorate perché senza justtcgId impostato.`);
+
+  log(`Avvio. Filtro gioco: ${GAME_FILTER}. Profili da aggiornare: ${PROFILES.map((p) => p.label).join(', ')}.`);
+
+  const usdToEur = await getUsdToEurRate();
+  const requestBudgetLeft = { used: 0 };
+  const debugState = { printed: false };
+
+  const results = [];
+  for (const profile of PROFILES) {
+    if (requestBudgetLeft.used >= DAILY_BUDGET) {
+      log(`Budget condiviso esaurito, salto il profilo "${profile.label}" (ripartirà domani).`);
+      continue;
+    }
+    const r = await updateProfile(profile, usdToEur, requestBudgetLeft, debugState);
+    results.push({ label: profile.label, ...r });
   }
+
+  // Riepilogo complessivo
+  const totalUpdated = results.reduce((s, r) => s + (r.updatedCount || 0), 0);
+  log(`Fatto tutto. Richieste JustTCG usate in totale: ${requestBudgetLeft.used}. Carte aggiornate in totale: ${totalUpdated}.`);
 
   if (process.env.GITHUB_STEP_SUMMARY) {
     const fs = await import('node:fs/promises');
-    const summary = [
+    const lines = [
       '## Aggiornamento valori Trackalo',
       '',
-      `- Carte con ID (aggiornate): ${withId.length}`,
-      `- Carte aggiornate con successo: ${updatedCount}`,
-      `- Carte senza ID (ignorate): ${withoutId}`,
-      `- Richieste JustTCG usate: ${requestsUsed}`,
-      notFound.length ? `- Problemi: ${notFound.join(' | ')}` : '',
-    ].join('\n');
-    await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, summary + '\n');
+      `- Richieste JustTCG usate: ${requestBudgetLeft.used} / ${DAILY_BUDGET}`,
+      `- Carte aggiornate in totale: ${totalUpdated}`,
+      '',
+    ];
+    for (const r of results) {
+      lines.push(`### ${r.label}`);
+      lines.push(`- Con ID: ${r.withIdCount ?? 0}, aggiornate: ${r.updatedCount ?? 0}, senza ID: ${r.withoutId ?? 0}`);
+      if (r.notFound?.length) lines.push(`- Problemi: ${r.notFound.join(' | ')}`);
+      lines.push('');
+    }
+    await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
   }
 }
 
