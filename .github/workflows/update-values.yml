@@ -37,10 +37,16 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Aggiorna i valori di mercato sul Gist
+      - name: Aggiorna i valori di mercato sui Gist
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
+          FRIEND1_GIST_TOKEN: ${{ secrets.FRIEND1_GIST_TOKEN }}
+          FRIEND1_GIST_ID: ${{ secrets.FRIEND1_GIST_ID }}
+          FRIEND1_LABEL: ${{ secrets.FRIEND1_LABEL }}
+          FRIEND2_GIST_TOKEN: ${{ secrets.FRIEND2_GIST_TOKEN }}
+          FRIEND2_GIST_ID: ${{ secrets.FRIEND2_GIST_ID }}
+          FRIEND2_LABEL: ${{ secrets.FRIEND2_LABEL }}
           JUSTTCG_API_KEY: ${{ secrets.JUSTTCG_API_KEY }}
           GAME_FILTER: ${{ github.event.inputs.game || 'all' }}
           DEBUG: ${{ github.event.inputs.debug || 'false' }}
