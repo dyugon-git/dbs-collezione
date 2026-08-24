@@ -1856,6 +1856,7 @@ const DB_KEY = 'dbsfw_cards';
 const FOLDER_KEY = 'dbsfw_img_folder';
 let cards = [];
 let selectedId = null;
+let savedGridScrollY = 0; // posizione di scroll della collezione, salvata prima di aprire il dettaglio a schermo intero (mobile)
 let activeFilter = 'all';
 let activeRarity = '';
 let editingId = null;
@@ -2208,13 +2209,16 @@ function renderDetail() {
 function openCardPage() {
   const card = cards.find(c => c.id === selectedId);
   if (!card) return;
+  const page = document.getElementById('card-detail-page');
+  const alreadyOpen = page.style.display !== 'none';
+  if (!alreadyOpen) savedGridScrollY = window.scrollY; // salva solo quando è una vera apertura, non un refresh a pagina già aperta
   // Hide main content, show card page
-  document.getElementById('card-detail-page').style.display = 'flex';
+  page.style.display = 'flex';
   document.querySelector('.toolbar').style.display = 'none';
   document.querySelector('.main').style.display = 'none';
   document.getElementById('card-page-title').textContent = card.code;
   document.getElementById('card-page-body').innerHTML = buildDetailHTML(card);
-  window.scrollTo(0, 0);
+  if (!alreadyOpen) window.scrollTo(0, 0);
 }
 
 function closeCardPage() {
@@ -2224,6 +2228,8 @@ function closeCardPage() {
     document.querySelector('.toolbar').style.display = '';
     document.querySelector('.main').style.display = '';
   }
+  // Ripristina la posizione di scroll che avevi prima di aprire il dettaglio
+  requestAnimationFrame(() => window.scrollTo(0, savedGridScrollY));
 }
 
 function openMobileDetail() { openCardPage(); }
