@@ -3628,7 +3628,7 @@ function renderAlbumPickerResults() {
     container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px">Nessuna carta trovata</div>';
     return;
   }
-  container.innerHTML = filtered.slice(0, 150).map(c => {
+  container.innerHTML = filtered.map(c => {
     const srcs = getImgSrc(c.code, c.game, c.rarity);
     const rKey = RARITY_KEY[c.rarity] || 'none';
     const thumb = `<div class="album-picker-thumb">${srcs ? imgWithFallback(srcs, c.code) : ''}</div>`;
