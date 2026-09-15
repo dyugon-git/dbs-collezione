@@ -1315,7 +1315,6 @@ body.guest-mode .budget-delete-btn{display:none !important;}
     <button class="filter-pill"        data-filter="fav"     onclick="setFilter('fav',this)">❤️ <span class="count-badge" id="cnt-fav">0</span></button>
   </div>
   <div class="separator"></div>
-  <select id="filter-rarity" onchange="setRaritySelect(this.value)" style="font-size:12px;padding:6px 10px;"><option value="">Tutte le rarità</option></select>
   <div class="separator"></div>
   <div class="sort-group">
     <span style="font-size:12px;color:var(--text3)">Ordina:</span>
@@ -1943,10 +1942,6 @@ function setRarity(r, btn) {
   activeRarity = r;
   renderGrid();
 }
-function setRaritySelect(val) {
-  activeRarity = val;
-  renderGrid();
-}
 
 function getFiltered() {
   const q = document.getElementById('search').value.toLowerCase().trim();
@@ -1993,14 +1988,6 @@ function renderGrid() {
   document.getElementById('cnt-missing').textContent  = missing;
   const favCount = document.getElementById('cnt-fav'); if(favCount) favCount.textContent = gamePool.filter(c=>c.fav).length;
 
-  // Populate rarity filter based on current game
-  const rarityFilterSel = document.getElementById('filter-rarity');
-  if (rarityFilterSel) {
-    const curRar = rarityFilterSel.value;
-    const gameRars = getGameRarities(currentGame || 'Dragon Ball');
-    rarityFilterSel.innerHTML = '<option value="">Tutte le rarità</option>' +
-      gameRars.map(r => `<option value="${esc(r[0])}"${r[0]===curRar?' selected':''}>${esc(r[0])}</option>`).join('');
-  }
   // Populate set filter (only sets of current game)
   const setsPool = currentGame ? cards.filter(c=>(c.game||'Dragon Ball')===currentGame) : cards;
   const sets = [...new Set(setsPool.map(c=>c.set).filter(Boolean))].sort();
