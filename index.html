@@ -2295,11 +2295,16 @@ function saveCard() {
   const dup = cards.find(c => c.code === code && c.id !== editingId);
   if (dup) { alert('Esiste già una carta con questo codice!'); return; }
 
-  const set = code.includes('-') ? code.split('-')[0] : code;
+  const game = document.getElementById('f-game').value;
+  // Le carte da Structure Deck (Dragon Ball, codici tipo "FS01-01", "FS02-01"...) vengono
+  // raggruppate tutte in un'unica espansione "FS", invece di una per ogni structure deck
+  const set = (game === 'Dragon Ball' && code.startsWith('FS'))
+    ? 'FS'
+    : (code.includes('-') ? code.split('-')[0] : code);
   const data = {
     code,
     set,
-    game:   document.getElementById('f-game').value,
+    game,
     name:   document.getElementById('f-name').value.trim(),
     rarity: document.getElementById('f-rarity').value,
     status: document.getElementById('f-status').value,
