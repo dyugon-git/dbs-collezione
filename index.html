@@ -1927,8 +1927,12 @@ function getImgSrc(code, game, rarity) {
   return localSrcs;
 }
 function imgWithFallback(srcs, alt) {
-  return `<img src="${srcs[0]}" alt="${alt}"
-    onerror="var s=${JSON.stringify(srcs)};var i=s.indexOf(this.src)+1;if(i<s.length){this.src=s[i];}else{this.style.display='none';var n=this.nextElementSibling;if(n)n.style.display='flex';}">`;
+  // Usiamo un contatore esplicito (data-idx) invece di cercare l'URL corrente
+  // nell'array: per le immagini locali il browser restituisce sempre l'URL
+  // risolto/assoluto, che non combacerebbe mai con il percorso relativo salvato
+  // nell'array, mandando il fallback in loop invece di avanzare al tentativo successivo.
+  return `<img src="${srcs[0]}" alt="${alt}" data-idx="0"
+    onerror="var s=${JSON.stringify(srcs)};var i=parseInt(this.dataset.idx,10)+1;this.dataset.idx=i;if(i<s.length){this.src=s[i];}else{this.style.display='none';var n=this.nextElementSibling;if(n)n.style.display='flex';}">`;
 }
 
 // --- FILTERS ---
