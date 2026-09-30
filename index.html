@@ -1912,10 +1912,9 @@ function getImgSrc(code, game, rarity) {
   const localSrcs = [folder+c+'.jpg', folder+c+'.png', folder+c+'.webp', folder+c+'.jpeg'];
   const viaProxy = (path) => 'https://images.weserv.nl/?url=' + encodeURIComponent(path);
   if (game === 'Dragon Ball') {
-	const suffix = rarity === 'L★' ? '_b_p1' : '_p1';
-	if (code === 'FS08-01') {
-		const suffix = rarity === 'L★' ? '_b' : '_p1';
-	}
+	const suffix = code === 'FS08-01'
+    ? (rarity === 'L★' ? '_b' : '_p1')
+    : (rarity === 'L★' ? '_b_p1' : '_p1');
     const path = 'www.dbs-cardgame.com/fw/images/cards/card/en/'+c+suffix+'.webp';
     return [viaProxy(path), 'https://'+path, ...localSrcs];
   }
