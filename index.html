@@ -1164,6 +1164,7 @@ body.show-values .form-field.value-field{display:flex;}
 body.show-values .detail-row.value-field{display:flex;}
 body.show-values .card-thumb .value-field{display:inline;}
 body.show-values .sort-btn.value-field{display:flex;}
+body.show-values #movers-section.value-field{display:flex;}
 body.guest-mode .fav-btn{pointer-events:none;opacity:.55;}
 body.guest-mode .status-btn{pointer-events:none;opacity:.6;}
 body.guest-mode .detail-actions .btn:not(.guest-keep){display:none !important;}
@@ -1444,6 +1445,15 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <div class="chart-subtitle" id="subtitle-right"></div>
     </div>
 
+  </div>
+
+  <!-- Movimenti di prezzo (carte in crescita/calo rispetto all'ultimo aggiornamento automatico) -->
+  <div class="chart-card chart-card-full value-field" id="movers-section" style="margin-top:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+      <h3 style="margin:0;font-size:15px;color:var(--text);">📈📉 Movimenti di prezzo</h3>
+      <span id="movers-updated-label" style="font-size:11px;color:var(--text3);"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:20px;" id="movers-columns"></div>
   </div>
 </div>
 
@@ -2459,6 +2469,7 @@ const GIST_ID_KEY    = 'dbsfw_gist_id';
 const GIST_FILENAME  = 'dbsfw_collection.json';
 const FRIENDS_FILENAME = 'dbsfw_friends.json';
 const ALBUMS_FILENAME = 'dbsfw_albums.json';
+const MOVERS_FILENAME = 'dbsfw_movers.json'; // scritto solo dallo script automatico di aggiornamento valori, l'app lo legge soltanto
 
 function markAccountSynced(synced) {
   const icon = document.getElementById('account-icon');
@@ -2624,6 +2635,15 @@ async function gistPull() {
       try { const pa = JSON.parse(alc); if (Array.isArray(pa)) pulledAlbums = pa; } catch {}
     }
 
+    // Pull movers (classifica carte in crescita/calo), scritto solo dallo script automatico
+    let pulledMovers = null;
+    const moversFile = data.files[MOVERS_FILENAME];
+    if (moversFile) {
+      let mc = moversFile.content;
+      if (moversFile.truncated) { const r = await fetch(moversFile.raw_url); mc = await r.text(); }
+      try { const pm = JSON.parse(mc); if (pm && typeof pm === 'object') pulledMovers = pm; } catch {}
+    }
+
     const msg = pulledBudget.length
       ? `Scaricare ${parsed.length} carte e ${pulledBudget.length} movimenti budget dal Gist?`
       : `Scaricare ${parsed.length} carte dal Gist?`;
@@ -2640,6 +2660,7 @@ async function gistPull() {
     saveBudget();
     if (pulledFriends) saveFriends(pulledFriends);
     if (pulledAlbums) { albums = pulledAlbums; saveAlbums(); }
+    if (pulledMovers) saveMovers(pulledMovers);
     isPulling = false;
     clearTimeout(autoPushTimer);
     selectedId = null;
@@ -2650,6 +2671,7 @@ async function gistPull() {
     renderFriendsList();
     resetAlbumsToList();
     renderAlbumsPage();
+    if (document.getElementById('stats-page')?.classList.contains('visible')) renderStats();
     setGistStatus(`✓ Scaricate ${cards.length} carte, ${budgetEntries.length} movimenti e ${loadFriends().length} amici dal Gist.`, 'ok');
     setSyncIndicator('saved', 'Salvato');
     markAccountSynced(true);
@@ -2809,7 +2831,15 @@ async function viewFriendCollection(friendId) {
       try { const pa = JSON.parse(ac); if (Array.isArray(pa)) friendAlbums = pa; } catch {}
     }
 
-    enterGuestMode(friend.name, friendCards, friendBudget, friendAlbums);
+    let friendMovers = null;
+    const moversFile = data.files[MOVERS_FILENAME];
+    if (moversFile) {
+      let mc = moversFile.content;
+      if (moversFile.truncated) { const r = await fetch(moversFile.raw_url); mc = await r.text(); }
+      try { const pm = JSON.parse(mc); if (pm && typeof pm === 'object') friendMovers = pm; } catch {}
+    }
+
+    enterGuestMode(friend.name, friendCards, friendBudget, friendAlbums, friendMovers);
     setFriendsStatus('', '');
     closeGistModal();
   } catch (err) {
@@ -2817,13 +2847,14 @@ async function viewFriendCollection(friendId) {
   }
 }
 
-function enterGuestMode(friendName, friendCards, friendBudget, friendAlbums) {
+function enterGuestMode(friendName, friendCards, friendBudget, friendAlbums, friendMovers) {
   if (!guestMode) {
     // Backup della propria collezione, una sola volta
     guestBackup = {
       cards: cards,
       budgetEntries: budgetEntries,
       albums: albums,
+      movers: movers,
       currentGame: currentGame,
       currentPage: currentPage
     };
@@ -2835,6 +2866,7 @@ function enterGuestMode(friendName, friendCards, friendBudget, friendAlbums) {
   cards = friendCards || [];
   budgetEntries = friendBudget || [];
   albums = friendAlbums || [];
+  movers = friendMovers || { updatedAt: null, gainers: [], losers: [] }; // solo in memoria, mai salvato in localStorage qui
   selectedId = null;
   currentGame = null;
   resetAlbumsToList();
@@ -2855,6 +2887,7 @@ function enterGuestMode(friendName, friendCards, friendBudget, friendAlbums) {
   renderBudget();
   renderAlbumsPage();
   updateBudgetStat();
+  if (document.getElementById('stats-page')?.classList.contains('visible')) renderStats();
   toast('Stai visualizzando la collezione di ' + friendName, 'info');
 }
 
@@ -2863,6 +2896,7 @@ function exitGuestMode() {
   cards = guestBackup.cards;
   budgetEntries = guestBackup.budgetEntries;
   albums = guestBackup.albums;
+  movers = guestBackup.movers;
   currentGame = null; // deseleziona il gioco per evitare confusione con quello visto dall'amico
   guestBackup = null;
   guestMode = false;
@@ -2883,6 +2917,7 @@ function exitGuestMode() {
   renderAlbumsPage();
   scheduleAutoPush(); // sincronizza eventuali modifiche alla lista amici fatte durante la visualizzazione ospite
   updateBudgetStat();
+  if (document.getElementById('stats-page')?.classList.contains('visible')) renderStats();
   toast('Sei tornato/a alla tua collezione', 'success');
 }
 
@@ -3162,6 +3197,17 @@ function loadAlbums() {
   try { albums = JSON.parse(localStorage.getItem(ALBUMS_KEY) || '[]'); } catch { albums = []; }
 }
 function saveAlbums() { if (guestMode) return; localStorage.setItem(ALBUMS_KEY, JSON.stringify(albums)); scheduleAutoPush(); }
+
+// --- MOVERS (classifica giornaliera carte in crescita/calo di valore) ---
+// Scritto solo dallo script automatico esterno che aggiorna i valori di mercato:
+// l'app lo legge e basta, non lo modifica né lo ripubblica mai sul Gist.
+const MOVERS_KEY = 'dbsfw_movers';
+let movers = { updatedAt: null, gainers: [], losers: [] };
+function loadMovers() {
+  try { movers = JSON.parse(localStorage.getItem(MOVERS_KEY) || 'null') || { updatedAt: null, gainers: [], losers: [] }; }
+  catch { movers = { updatedAt: null, gainers: [], losers: [] }; }
+}
+function saveMovers(m) { movers = m; localStorage.setItem(MOVERS_KEY, JSON.stringify(movers)); } // niente scheduleAutoPush: mai inviato dall'app
 
 function albumProgress(album) {
   const total = album.pages.reduce((s,p) => s + p.length, 0);
@@ -4356,6 +4402,54 @@ function renderStats() {
 
   renderChart('left');
   renderChart('right');
+  renderMoversSection();
+}
+
+// --- Movimenti di prezzo (carte in crescita/calo rispetto all'ultimo aggiornamento automatico) ---
+function renderMoversSection() {
+  const label = document.getElementById('movers-updated-label');
+  const container = document.getElementById('movers-columns');
+  if (!container) return;
+
+  if (label) {
+    if (movers.updatedAt) {
+      const d = new Date(movers.updatedAt);
+      label.textContent = `Ultimo aggiornamento: ${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'})}`;
+    } else {
+      label.textContent = '';
+    }
+  }
+
+  const gainers = movers.gainers || [];
+  const losers = movers.losers || [];
+
+  if (!movers.updatedAt || (gainers.length === 0 && losers.length === 0)) {
+    container.innerHTML = `<div style="grid-column:1/-1;color:var(--text3);font-size:13px;">Nessun dato disponibile ancora — comparirà qui dopo il prossimo aggiornamento automatico dei valori.</div>`;
+    return;
+  }
+
+  function buildColumn(title, list, isGain) {
+    if (!list.length) {
+      return `<div><div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2);">${title}</div><div style="color:var(--text3);font-size:12px;">Nessun movimento.</div></div>`;
+    }
+    const rows = list.map(m => {
+      const col = isGain ? 'var(--green)' : 'var(--red)';
+      const sign = m.delta > 0 ? '+' : '';
+      const pctStr = (m.pct !== null && m.pct !== undefined) ? ` (${sign}${m.pct.toFixed(0)}%)` : '';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
+        <div style="min-width:0;">
+          <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.name||m.code)}</div>
+          <div style="font-size:11px;color:var(--text3);">${esc(m.code)} · €${m.oldValue.toFixed(2)} → €${m.newValue.toFixed(2)}</div>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:${col};white-space:nowrap;">${sign}€${Math.abs(m.delta).toFixed(2)}${pctStr}</div>
+      </div>`;
+    }).join('');
+    return `<div><div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2);">${title}</div>${rows}</div>`;
+  }
+
+  container.innerHTML =
+    buildColumn('📈 In crescita', gainers, true) +
+    buildColumn('📉 In calo', losers, false);
 }
 
 function renderChart(side) {
@@ -4559,6 +4653,7 @@ function initShowValues() {
 loadCards();
 loadBudget();
 loadAlbums();
+loadMovers();
 initShowValues();
 initGistBtnState();
 setSyncIndicator('saved', 'Salvato');
@@ -4642,6 +4737,16 @@ updateBudgetStat();
         if (alf.truncated) { const r = await fetch(alf.raw_url); alcontent = await r.text(); }
         const pa = JSON.parse(alcontent);
         if (Array.isArray(pa)) { albums = pa; saveAlbums(); }
+      }
+    } catch {}
+    // Also try to pull movers (classifica carte in crescita/calo, scritto solo dallo script automatico)
+    try {
+      const mf = data.files[MOVERS_FILENAME];
+      if (mf) {
+        let mcontent = mf.content;
+        if (mf.truncated) { const r = await fetch(mf.raw_url); mcontent = await r.text(); }
+        const pm = JSON.parse(mcontent);
+        if (pm && typeof pm === 'object') saveMovers(pm);
       }
     } catch {}
     isPulling = false;
