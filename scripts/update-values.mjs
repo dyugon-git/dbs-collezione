@@ -25,6 +25,7 @@ const GAME_FILTER = process.env.GAME_FILTER || 'all';
 const DEBUG = process.env.DEBUG === 'true';
 
 const COLLECTION_FILENAME = 'dbsfw_collection.json';
+const MOVERS_FILENAME = 'dbsfw_movers.json';
 const JUSTTCG_BASE = 'https://api.justtcg.com/v1';
 
 // Free plan JustTCG: 10 richieste al minuto -> aspettiamo un po' più di 6s tra un batch e l'altro.
@@ -172,6 +173,7 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
 
   let updatedCount = 0;
   const notFound = [];
+  const priceMoves = []; // { code, name, game, oldValue, newValue } - solo per carte con un valore precedente
 
   for (const group of chunk(withId, 20)) {
     if (requestsUsed + requestBudgetLeft.used >= DAILY_BUDGET) {
@@ -199,8 +201,13 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
           notFound.push(`${card.code} (${card.name}) - nessun prezzo nella variante`);
           continue;
         }
-        card.value = round2(variant.price * usdToEur);
+        const oldValue = (card.value !== undefined && card.value !== null && card.value !== '') ? parseFloat(card.value) : null;
+        const newValue = round2(variant.price * usdToEur);
+        card.value = newValue;
         updatedCount++;
+        if (oldValue !== null && !Number.isNaN(oldValue) && newValue !== oldValue) {
+          priceMoves.push({ code: card.code, name: card.name, game: card.game, oldValue, newValue });
+        }
       }
     } catch (err) {
       log(`${label}: errore nel batch lookup:`, err.message);
@@ -209,7 +216,30 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
     await sleep(SLEEP_MS);
   }
 
-  // 3. Salva solo il file della collezione sul Gist (non tocca budget/friends/album)
+  // 3. Calcola le carte con la maggior crescita/calo di valore rispetto a prima di questa run
+  const gainers = priceMoves
+    .filter((m) => m.newValue > m.oldValue)
+    .sort((a, b) => (b.newValue - b.oldValue) - (a.newValue - a.oldValue))
+    .slice(0, 10)
+    .map((m) => ({
+      code: m.code, name: m.name, game: m.game,
+      oldValue: m.oldValue, newValue: m.newValue,
+      delta: round2(m.newValue - m.oldValue),
+      pct: m.oldValue ? round2((m.newValue - m.oldValue) / m.oldValue * 100) : null,
+    }));
+  const losers = priceMoves
+    .filter((m) => m.newValue < m.oldValue)
+    .sort((a, b) => (a.newValue - a.oldValue) - (b.newValue - b.oldValue))
+    .slice(0, 10)
+    .map((m) => ({
+      code: m.code, name: m.name, game: m.game,
+      oldValue: m.oldValue, newValue: m.newValue,
+      delta: round2(m.newValue - m.oldValue),
+      pct: m.oldValue ? round2((m.newValue - m.oldValue) / m.oldValue * 100) : null,
+    }));
+
+  // 4. Salva il file della collezione E la classifica dei movimenti sul Gist
+  //    (non tocca budget/friends/album, restano gestiti solo dall'app)
   if (updatedCount > 0) {
     try {
       await fetchJson(`https://api.github.com/gists/${gistId}`, {
@@ -220,7 +250,10 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          files: { [COLLECTION_FILENAME]: { content: JSON.stringify(cards, null, 2) } },
+          files: {
+            [COLLECTION_FILENAME]: { content: JSON.stringify(cards, null, 2) },
+            [MOVERS_FILENAME]: { content: JSON.stringify({ updatedAt: new Date().toISOString(), gainers, losers }, null, 2) },
+          },
         }),
       });
     } catch (err) {
@@ -228,10 +261,10 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
     }
   }
 
-  log(`${label}: fatto. Carte aggiornate: ${updatedCount}.`);
+  log(`${label}: fatto. Carte aggiornate: ${updatedCount}. Movimenti di prezzo: ${priceMoves.length} (${gainers.length} in crescita, ${losers.length} in calo).`);
   if (notFound.length) log(`${label}: problemi (${notFound.length}):`, notFound.join(' | '));
 
-  return { requestsUsed, updatedCount, withIdCount: withId.length, withoutId, notFound };
+  return { requestsUsed, updatedCount, withIdCount: withId.length, withoutId, notFound, gainersCount: gainers.length, losersCount: losers.length };
 }
 
 // --- MAIN ---
@@ -272,6 +305,7 @@ async function main() {
     for (const r of results) {
       lines.push(`### ${r.label}`);
       lines.push(`- Con ID: ${r.withIdCount ?? 0}, aggiornate: ${r.updatedCount ?? 0}, senza ID: ${r.withoutId ?? 0}`);
+      lines.push(`- In crescita: ${r.gainersCount ?? 0}, in calo: ${r.losersCount ?? 0}`);
       if (r.notFound?.length) lines.push(`- Problemi: ${r.notFound.join(' | ')}`);
       lines.push('');
     }
