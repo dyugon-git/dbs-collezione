@@ -173,7 +173,7 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
 
   let updatedCount = 0;
   const notFound = [];
-  const priceMoves = []; // { code, name, game, oldValue, newValue } - solo per carte con un valore precedente
+  const movements = []; // { code, name, game, value, change7d, change30d } - variazioni % calcolate da JustTCG
 
   for (const group of chunk(withId, 20)) {
     if (requestsUsed + requestBudgetLeft.used >= DAILY_BUDGET) {
@@ -201,12 +201,16 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
           notFound.push(`${card.code} (${card.name}) - nessun prezzo nella variante`);
           continue;
         }
-        const oldValue = (card.value !== undefined && card.value !== null && card.value !== '') ? parseFloat(card.value) : null;
         const newValue = round2(variant.price * usdToEur);
         card.value = newValue;
         updatedCount++;
-        if (oldValue !== null && !Number.isNaN(oldValue) && newValue !== oldValue) {
-          priceMoves.push({ code: card.code, name: card.name, game: card.game, oldValue, newValue });
+        // JustTCG calcola già le variazioni % su 7 e 30 giorni per ogni variante:
+        // le usiamo direttamente invece di confrontare il valore salvato ieri, che
+        // su carte economiche si muoveva troppo poco/di rado per essere interessante.
+        const change7d = typeof variant.priceChange7d === 'number' ? variant.priceChange7d : null;
+        const change30d = typeof variant.priceChange30d === 'number' ? variant.priceChange30d : null;
+        if (change7d !== null) {
+          movements.push({ code: card.code, name: card.name, game: card.game, value: newValue, change7d, change30d });
         }
       }
     } catch (err) {
@@ -216,27 +220,18 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
     await sleep(SLEEP_MS);
   }
 
-  // 3. Calcola le carte con la maggior crescita/calo di valore rispetto a prima di questa run
-  const gainers = priceMoves
-    .filter((m) => m.newValue > m.oldValue)
-    .sort((a, b) => (b.newValue - b.oldValue) - (a.newValue - a.oldValue))
+  // 3. Calcola le carte con la maggior crescita/calo, ordinate per variazione % a 7 giorni
+  //    (mostriamo comunque anche il 30 giorni accanto, per dare più contesto)
+  const gainers = movements
+    .filter((m) => m.change7d > 0)
+    .sort((a, b) => b.change7d - a.change7d)
     .slice(0, 10)
-    .map((m) => ({
-      code: m.code, name: m.name, game: m.game,
-      oldValue: m.oldValue, newValue: m.newValue,
-      delta: round2(m.newValue - m.oldValue),
-      pct: m.oldValue ? round2((m.newValue - m.oldValue) / m.oldValue * 100) : null,
-    }));
-  const losers = priceMoves
-    .filter((m) => m.newValue < m.oldValue)
-    .sort((a, b) => (a.newValue - a.oldValue) - (b.newValue - b.oldValue))
+    .map((m) => ({ code: m.code, name: m.name, game: m.game, value: m.value, change7d: round2(m.change7d), change30d: m.change30d !== null ? round2(m.change30d) : null }));
+  const losers = movements
+    .filter((m) => m.change7d < 0)
+    .sort((a, b) => a.change7d - b.change7d)
     .slice(0, 10)
-    .map((m) => ({
-      code: m.code, name: m.name, game: m.game,
-      oldValue: m.oldValue, newValue: m.newValue,
-      delta: round2(m.newValue - m.oldValue),
-      pct: m.oldValue ? round2((m.newValue - m.oldValue) / m.oldValue * 100) : null,
-    }));
+    .map((m) => ({ code: m.code, name: m.name, game: m.game, value: m.value, change7d: round2(m.change7d), change30d: m.change30d !== null ? round2(m.change30d) : null }));
 
   // 4. Salva il file della collezione E la classifica dei movimenti sul Gist
   //    (non tocca budget/friends/album, restano gestiti solo dall'app)
@@ -261,7 +256,7 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
     }
   }
 
-  log(`${label}: fatto. Carte aggiornate: ${updatedCount}. Movimenti di prezzo: ${priceMoves.length} (${gainers.length} in crescita, ${losers.length} in calo).`);
+  log(`${label}: fatto. Carte aggiornate: ${updatedCount}. Movimenti di prezzo: ${movements.length} (${gainers.length} in crescita, ${losers.length} in calo).`);
   if (notFound.length) log(`${label}: problemi (${notFound.length}):`, notFound.join(' | '));
 
   return { requestsUsed, updatedCount, withIdCount: withId.length, withoutId, notFound, gainersCount: gainers.length, losersCount: losers.length };
