@@ -4408,8 +4408,16 @@ function renderStats() {
 
 // --- Movimenti di prezzo (carte in crescita/calo rispetto all'ultimo aggiornamento automatico) ---
 let moversFilter = 'all'; // 'all' | 'have' | 'missing'
+const MOVERS_PAGE_SIZE = 10;
+let moversPage = { gain: 0, loss: 0 }; // pagina corrente di ciascuna colonna (indice da 0)
+let moversGameSeen = null; // per riportare le pagine all'inizio quando cambia il gioco
 function setMoversFilter(f) {
   moversFilter = f;
+  moversPage = { gain: 0, loss: 0 };
+  renderMoversSection();
+}
+function setMoversPage(side, p) {
+  moversPage[side] = Math.max(0, p);
   renderMoversSection();
 }
 function renderMoversSection() {
@@ -4457,15 +4465,25 @@ function renderMoversSection() {
     return c && c.status === moversFilter;
   });
 
-  // Top 10 calcolato DOPO il filtro, ordinato per variazione a 7 giorni
-  const gainers = filtered.filter(m => m.change7d > 0).sort((a, b) => b.change7d - a.change7d).slice(0, 10);
-  const losers  = filtered.filter(m => m.change7d < 0).sort((a, b) => a.change7d - b.change7d).slice(0, 10);
+  // Se è cambiato il gioco selezionato, le pagine ripartono dalla prima
+  if (moversGameSeen !== currentGame) {
+    moversGameSeen = currentGame;
+    moversPage = { gain: 0, loss: 0 };
+  }
 
-  function buildColumn(title, list, isGain) {
+  // Tutte le carte dopo il filtro, ordinate per variazione a 7 giorni (paginate a 10 per volta)
+  const gainers = filtered.filter(m => m.change7d > 0).sort((a, b) => b.change7d - a.change7d);
+  const losers  = filtered.filter(m => m.change7d < 0).sort((a, b) => a.change7d - b.change7d);
+
+  function buildColumn(title, list, isGain, side) {
     if (!list.length) {
       return `<div><div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2);">${title}</div><div style="color:var(--text3);font-size:12px;">Nessun movimento.</div></div>`;
     }
-    const rows = list.map(m => {
+    const totalPages = Math.max(1, Math.ceil(list.length / MOVERS_PAGE_SIZE));
+    if (moversPage[side] > totalPages - 1) moversPage[side] = totalPages - 1;
+    const page = moversPage[side];
+    const pageItems = list.slice(page * MOVERS_PAGE_SIZE, (page + 1) * MOVERS_PAGE_SIZE);
+    const rows = pageItems.map(m => {
       const col = isGain ? 'var(--green)' : 'var(--red)';
       const sign7 = m.change7d > 0 ? '+' : '';
       const change30Str = (m.change30d !== null && m.change30d !== undefined)
@@ -4491,12 +4509,20 @@ function renderMoversSection() {
         </div>
       </div>`;
     }).join('');
-    return `<div><div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2);">${title}</div>${rows}</div>`;
+    const pagerBtn = (disabled) => `padding:4px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:13px;cursor:pointer;${disabled ? 'opacity:.35;pointer-events:none;' : ''}`;
+    const pager = totalPages > 1
+      ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px;">
+          <button style="${pagerBtn(page === 0)}" onclick="setMoversPage('${side}',${page - 1})">‹</button>
+          <span style="font-size:12px;color:var(--text3);">Pagina ${page + 1} di ${totalPages}</span>
+          <button style="${pagerBtn(page >= totalPages - 1)}" onclick="setMoversPage('${side}',${page + 1})">›</button>
+        </div>`
+      : '';
+    return `<div><div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2);">${title} <span style="font-weight:400;color:var(--text3);">(${list.length})</span></div>${rows}${pager}</div>`;
   }
 
   container.innerHTML =
-    buildColumn('📈 In crescita', gainers, true) +
-    buildColumn('📉 In calo', losers, false);
+    buildColumn('📈 In crescita', gainers, true, 'gain') +
+    buildColumn('📉 In calo', losers, false, 'loss');
 }
 
 function renderChart(side) {
