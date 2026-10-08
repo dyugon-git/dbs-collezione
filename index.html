@@ -1453,6 +1453,7 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <h3 style="margin:0;font-size:15px;color:var(--text);">📈📉 Movimenti di prezzo <span style="font-weight:400;font-size:12px;color:var(--text3);">(variazione % a 7 giorni, con il 30gg a confronto)</span></h3>
       <span id="movers-updated-label" style="font-size:11px;color:var(--text3);"></span>
     </div>
+    <div class="ctrl-pills" id="movers-filters" style="margin-bottom:14px;"></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:20px;" id="movers-columns"></div>
   </div>
 </div>
@@ -4406,6 +4407,11 @@ function renderStats() {
 }
 
 // --- Movimenti di prezzo (carte in crescita/calo rispetto all'ultimo aggiornamento automatico) ---
+let moversFilter = 'all'; // 'all' | 'have' | 'missing'
+function setMoversFilter(f) {
+  moversFilter = f;
+  renderMoversSection();
+}
 function renderMoversSection() {
   const label = document.getElementById('movers-updated-label');
   const container = document.getElementById('movers-columns');
@@ -4420,13 +4426,40 @@ function renderMoversSection() {
     }
   }
 
-  const gainers = movers.gainers || [];
-  const losers = movers.losers || [];
+  const filtersEl = document.getElementById('movers-filters');
 
-  if (!movers.updatedAt || (gainers.length === 0 && losers.length === 0)) {
+  if (!movers.updatedAt) {
+    if (filtersEl) filtersEl.innerHTML = '';
     container.innerHTML = `<div style="grid-column:1/-1;color:var(--text3);font-size:13px;">Nessun dato disponibile ancora — comparirà qui dopo il prossimo aggiornamento automatico dei valori.</div>`;
     return;
   }
+
+  // Filtri: Tutte / Ho / Mi manca
+  if (filtersEl) {
+    filtersEl.innerHTML = [['all','Tutte'], ['have','Che ho'], ['missing','Che non ho']]
+      .map(([val, lbl]) => `<button class="ctrl-pill${moversFilter === val ? ' active' : ''}" onclick="setMoversFilter('${val}')">${lbl}</button>`)
+      .join('');
+  }
+
+  // Lista completa dei movimenti. Se il file è stato scritto da una versione precedente
+  // dello script (solo gainers/losers), ripiega su quelle.
+  const allMoves = Array.isArray(movers.movements)
+    ? movers.movements
+    : [...(movers.gainers || []), ...(movers.losers || [])];
+
+  // Per ogni movimento recupero la carta dalla collezione (stato + link mercato)
+  const moveCard = (m) => cards.find(c => c.code === m.code && (c.game || 'Dragon Ball') === (m.game || 'Dragon Ball'));
+  const filtered = allMoves.filter(m => {
+    // Come KPI e grafici della pagina: se è selezionato un gioco, mostra solo quello
+    if (currentGame && (m.game || 'Dragon Ball') !== currentGame) return false;
+    if (moversFilter === 'all') return true;
+    const c = moveCard(m);
+    return c && c.status === moversFilter;
+  });
+
+  // Top 10 calcolato DOPO il filtro, ordinato per variazione a 7 giorni
+  const gainers = filtered.filter(m => m.change7d > 0).sort((a, b) => b.change7d - a.change7d).slice(0, 10);
+  const losers  = filtered.filter(m => m.change7d < 0).sort((a, b) => a.change7d - b.change7d).slice(0, 10);
 
   function buildColumn(title, list, isGain) {
     if (!list.length) {
@@ -4436,14 +4469,26 @@ function renderMoversSection() {
       const col = isGain ? 'var(--green)' : 'var(--red)';
       const sign7 = m.change7d > 0 ? '+' : '';
       const change30Str = (m.change30d !== null && m.change30d !== undefined)
-        ? ` <span style="color:var(--text3);font-weight:400;">(30gg: ${m.change30d > 0 ? '+' : ''}${m.change30d.toFixed(1)}%)</span>`
+        ? `<div style="font-size:11px;font-weight:400;color:var(--text3);">30gg: ${m.change30d > 0 ? '+' : ''}${m.change30d.toFixed(1)}%</div>`
+        : '';
+      const c = moveCard(m);
+      const marketBtn = (c && c.url)
+        ? `<a href="${c.url}" target="_blank" rel="noopener"
+             style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;border:1px solid var(--blue2);color:var(--blue2);text-decoration:none;font-size:12px;font-weight:600;transition:background 0.15s;white-space:nowrap;flex-shrink:0;"
+             onmouseover="this.style.background='rgba(74,158,255,0.12)'" onmouseout="this.style.background=''">
+             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+             Mercato
+           </a>`
         : '';
       return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
         <div style="min-width:0;">
           <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.name||m.code)}</div>
           <div style="font-size:11px;color:var(--text3);">${esc(m.code)} · €${m.value.toFixed(2)}</div>
         </div>
-        <div style="font-size:13px;font-weight:600;color:${col};white-space:nowrap;text-align:right;">${sign7}${m.change7d.toFixed(1)}%${change30Str}</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+          <div style="font-size:13px;font-weight:600;color:${col};white-space:nowrap;text-align:right;">${sign7}${m.change7d.toFixed(1)}%${change30Str}</div>
+          ${marketBtn}
+        </div>
       </div>`;
     }).join('');
     return `<div><div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2);">${title}</div>${rows}</div>`;
