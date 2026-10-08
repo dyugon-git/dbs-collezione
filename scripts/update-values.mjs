@@ -247,7 +247,21 @@ async function updateProfile(profile, usdToEur, requestBudgetLeft, debugState) {
         body: JSON.stringify({
           files: {
             [COLLECTION_FILENAME]: { content: JSON.stringify(cards, null, 2) },
-            [MOVERS_FILENAME]: { content: JSON.stringify({ updatedAt: new Date().toISOString(), gainers, losers }, null, 2) },
+            // "movements" contiene TUTTE le carte con una variazione disponibile: l'app calcola
+            // i top 10 dopo aver applicato i suoi filtri (Tutte / Ho / Mi manca).
+            // gainers/losers restano per compatibilità con versioni dell'app non ancora aggiornate.
+            [MOVERS_FILENAME]: {
+              content: JSON.stringify({
+                updatedAt: new Date().toISOString(),
+                movements: movements.map((m) => ({
+                  code: m.code, name: m.name, game: m.game, value: m.value,
+                  change7d: round2(m.change7d),
+                  change30d: m.change30d !== null ? round2(m.change30d) : null,
+                })),
+                gainers,
+                losers,
+              }),
+            },
           },
         }),
       });
