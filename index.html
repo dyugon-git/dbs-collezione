@@ -1565,22 +1565,13 @@ body.guest-mode .budget-delete-btn{display:none !important;}
 
 <!-- BUDGET PAGE -->
 <div class="stats-page" id="budget-page" style="display:none;">
-  <!-- Month filter selects -->
+  <!-- Selettore mese: vuoto = tutti i mesi; le frecce vanno al mese precedente/successivo -->
   <div class="budget-month-nav" id="budget-month-nav">
-    <span style="font-size:12px;color:var(--text2)">Filtra:</span>
-    <select id="budget-filter-year" onchange="onBudgetFilterChange()" style="font-size:13px;padding:6px 10px">
-      <option value="">Tutti gli anni</option>
-    </select>
-    <select id="budget-filter-month" onchange="onBudgetFilterChange()" style="font-size:13px;padding:6px 10px">
-      <option value="">Tutti i mesi</option>
-      <option value="01">Gennaio</option><option value="02">Febbraio</option>
-      <option value="03">Marzo</option><option value="04">Aprile</option>
-      <option value="05">Maggio</option><option value="06">Giugno</option>
-      <option value="07">Luglio</option><option value="08">Agosto</option>
-      <option value="09">Settembre</option><option value="10">Ottobre</option>
-      <option value="11">Novembre</option><option value="12">Dicembre</option>
-    </select>
-    <button class="btn btn-sm" onclick="clearBudgetFilter()" style="color:var(--text3)">✕ Reset</button>
+    <button class="btn btn-sm" onclick="budgetMonthStep(-1)" title="Mese precedente">‹</button>
+    <input type="month" id="budget-month-input" placeholder="AAAA-MM" onchange="onBudgetMonthInput(this.value)" style="font-size:13px;padding:6px 10px">
+    <button class="btn btn-sm" onclick="budgetMonthStep(1)" title="Mese successivo">›</button>
+    <span id="budget-month-status" style="font-size:12px;color:var(--text2)">Tutti i mesi</span>
+    <button class="btn btn-sm" onclick="clearBudgetFilter()" style="color:var(--text3)">Tutti</button>
   </div>
 
   <!-- Charts row -->
@@ -1623,6 +1614,7 @@ body.guest-mode .budget-delete-btn{display:none !important;}
     </button>
   </div>
 
+  <div class="ctrl-pills" id="budget-type-filters" style="margin-bottom:12px;"></div>
   <div class="budget-table-wrap">
     <table class="budget-table" id="budget-table">
       <thead>
@@ -1640,6 +1632,7 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       <p>Nessun movimento</p>
       <small>Aggiungi entrate e uscite per tracciare il tuo budget</small>
     </div>
+    <div id="budget-pager"></div>
   </div>
 </div>
 
@@ -2922,39 +2915,54 @@ function exitGuestMode() {
   toast('Sei tornato/a alla tua collezione', 'success');
 }
 
-// --- BUDGET MONTH FILTER ---
-function getAvailableYears() {
-  const set = new Set(budgetEntries.map(e => e.date.slice(0,4)));
-  return [...set].sort();
+// --- BUDGET: filtro mese, filtro entrate/uscite, paginazione ---
+const BUDGET_PAGE_SIZE = 10;
+const BUDGET_MONTH_NAMES = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+let budgetMonth = '';   // '' = tutti i mesi, altrimenti 'AAAA-MM'
+let budgetListType = 'all'; // 'all' | 'in' | 'out'
+let budgetPage = 0;     // pagina corrente della tabella (indice da 0)
+
+function budgetMonthLabel(ym) {
+  if (!ym) return 'Tutti i mesi';
+  return BUDGET_MONTH_NAMES[parseInt(ym.slice(5, 7), 10) - 1] + ' ' + ym.slice(0, 4);
 }
 
-function populateBudgetYearSelect() {
-  const sel = document.getElementById('budget-filter-year');
-  if (!sel) return;
-  const cur = sel.value;
-  const years = getAvailableYears();
-  sel.innerHTML = '<option value="">Tutti gli anni</option>' +
-    years.map(y => `<option value="${y}"${y===cur?' selected':''}>${y}</option>`).join('');
-}
-
-function onBudgetFilterChange() { renderBudget(); }
-
-function clearBudgetFilter() {
-  const sy = document.getElementById('budget-filter-year');
-  const sm = document.getElementById('budget-filter-month');
-  if (sy) sy.value = '';
-  if (sm) sm.value = '';
+function setBudgetMonth(ym) {
+  budgetMonth = ym;
+  budgetPage = 0;
   renderBudget();
 }
 
+function onBudgetMonthInput(v) {
+  if (v === '') { setBudgetMonth(''); return; }
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(v)) { setBudgetMonth(v); return; }
+  // Valore non valido (es. browser senza selettore mese e testo scritto male): ripristina il precedente
+  const inp = document.getElementById('budget-month-input');
+  if (inp) inp.value = budgetMonth;
+}
+
+// Frecce: da "Tutti i mesi" si passa al mese corrente, poi ci si muove di mese in mese
+function budgetMonthStep(dir) {
+  let ym;
+  if (!budgetMonth) {
+    const now = new Date();
+    ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  } else {
+    let y = parseInt(budgetMonth.slice(0, 4), 10);
+    let m = parseInt(budgetMonth.slice(5, 7), 10) + dir;
+    if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+    ym = y + '-' + String(m).padStart(2, '0');
+  }
+  setBudgetMonth(ym);
+}
+
+function clearBudgetFilter() { setBudgetMonth(''); }
+function setBudgetListType(t) { budgetListType = t; budgetPage = 0; renderBudget(); }
+function setBudgetPage(p) { budgetPage = Math.max(0, p); renderBudget(); }
+
+// Movimenti del periodo scelto, usati per i totali: il filtro entrate/uscite e le pagine NON li toccano
 function getBudgetFilteredEntries() {
-  const year  = (document.getElementById('budget-filter-year')  || {}).value || '';
-  const month = (document.getElementById('budget-filter-month') || {}).value || '';
-  return budgetEntries.filter(e => {
-    if (year  && !e.date.startsWith(year))       return false;
-    if (month && e.date.slice(5,7) !== month)    return false;
-    return true;
-  });
+  return budgetEntries.filter(e => !budgetMonth || e.date.slice(0, 7) === budgetMonth);
 }
 
 function drawBudgetLineChart() {
@@ -3833,6 +3841,7 @@ function deleteBudgetEntry(id) {
 function budgetSort(col) {
   if (budgetSortCol === col) budgetSortDir *= -1;
   else { budgetSortCol = col; budgetSortDir = col === 'date' ? -1 : 1; }
+  budgetPage = 0;
   ['date','desc','amount'].forEach(k => {
     const el = document.getElementById('bsort-'+k);
     if (el) el.textContent = budgetSortCol === k ? (budgetSortDir === 1 ? '↑' : '↓') : '↕';
@@ -3845,23 +3854,34 @@ function renderBudget() {
   const empty = document.getElementById('budget-empty');
   if (!tbody) return;
 
-  // Filter by year/month selects
-  populateBudgetYearSelect();
-  const filtered = getBudgetFilteredEntries();
+  // Sincronizza il selettore del mese e la scritta del periodo
+  const monthInput = document.getElementById('budget-month-input');
+  if (monthInput && monthInput.value !== budgetMonth) monthInput.value = budgetMonth;
+  const monthStatus = document.getElementById('budget-month-status');
+  if (monthStatus) monthStatus.textContent = budgetMonthLabel(budgetMonth);
 
-  const sorted = [...filtered].sort((a, b) => {
+  // "filtered" = periodo scelto (serve ai totali); "tableEntries" = periodo + filtro entrate/uscite (serve alla tabella)
+  const filtered = getBudgetFilteredEntries();
+  const tableEntries = filtered.filter(e => budgetListType === 'all' || (budgetListType === 'in' ? e.amount > 0 : e.amount < 0));
+
+  const sorted = [...tableEntries].sort((a, b) => {
     if (budgetSortCol === 'date')   return a.date.localeCompare(b.date) * budgetSortDir;
     if (budgetSortCol === 'desc')   return a.desc.localeCompare(b.desc) * budgetSortDir;
     if (budgetSortCol === 'amount') return (a.amount - b.amount) * budgetSortDir;
     return 0;
   });
 
+  // Paginazione: 10 movimenti per volta
+  const totalPages = Math.max(1, Math.ceil(sorted.length / BUDGET_PAGE_SIZE));
+  if (budgetPage > totalPages - 1) budgetPage = totalPages - 1;
+  const pageItems = sorted.slice(budgetPage * BUDGET_PAGE_SIZE, (budgetPage + 1) * BUDGET_PAGE_SIZE);
+
   if (!sorted.length) {
     tbody.innerHTML = '';
     empty.style.display = 'flex';
   } else {
     empty.style.display = 'none';
-    tbody.innerHTML = sorted.map(e => {
+    tbody.innerHTML = pageItems.map(e => {
     const pos = e.amount >= 0;
     const amountStr = (pos ? '+' : '') + '€' + Math.abs(e.amount).toFixed(2);
     const dateStr = e.date.split('-').reverse().join('/');
@@ -3881,6 +3901,27 @@ function renderBudget() {
       </td>
     </tr>`;
   }).join('');
+  }
+
+  // Pulsanti Tutti / Entrate / Uscite
+  const typeEl = document.getElementById('budget-type-filters');
+  if (typeEl) {
+    typeEl.innerHTML = [['all', 'Tutti'], ['in', 'Entrate'], ['out', 'Uscite']]
+      .map(([v, l]) => `<button class="ctrl-pill${budgetListType === v ? ' active' : ''}" onclick="setBudgetListType('${v}')">${l}</button>`)
+      .join('');
+  }
+
+  // Paginatore (compare solo se serve più di una pagina)
+  const pagerEl = document.getElementById('budget-pager');
+  if (pagerEl) {
+    const pagerBtn = (disabled) => `padding:4px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:13px;cursor:pointer;${disabled ? 'opacity:.35;pointer-events:none;' : ''}`;
+    pagerEl.innerHTML = totalPages > 1
+      ? `<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 0 4px;">
+          <button style="${pagerBtn(budgetPage === 0)}" onclick="setBudgetPage(${budgetPage - 1})">‹</button>
+          <span style="font-size:12px;color:var(--text3);">Pagina ${budgetPage + 1} di ${totalPages} · ${sorted.length} movimenti</span>
+          <button style="${pagerBtn(budgetPage >= totalPages - 1)}" onclick="setBudgetPage(${budgetPage + 1})">›</button>
+        </div>`
+      : '';
   }
 
   // Update KPIs (sempre, anche se non ci sono movimenti: azzera le card invece di lasciarle "vecchie")
