@@ -1577,7 +1577,11 @@ body.guest-mode .budget-delete-btn{display:none !important;}
   <!-- Charts row -->
   <div class="stats-charts-row" style="margin-bottom:24px">
     <div class="chart-card">
-      <div class="chart-title">Saldo cumulativo nel tempo</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-sm" onclick="toggleBudgetLineMode()" title="Cambia vista">‹</button>
+        <div class="chart-title" id="budget-line-title" style="margin-bottom:0;text-align:center;">Entrate cumulative nel tempo</div>
+        <button class="btn btn-sm" onclick="toggleBudgetLineMode()" title="Cambia vista">›</button>
+      </div>
       <div style="position:relative;width:100%;height:180px;">
         <canvas id="budget-line-chart" style="width:100%;height:180px;"></canvas>
       </div>
@@ -2965,6 +2969,18 @@ function getBudgetFilteredEntries() {
   return budgetEntries.filter(e => !budgetMonth || e.date.slice(0, 7) === budgetMonth);
 }
 
+// Grafico a sinistra: totale cumulativo delle entrate oppure delle uscite (le frecce alternano le due viste)
+let budgetLineMode = 'in'; // 'in' | 'out'
+function budgetLineTitle() {
+  return budgetLineMode === 'in' ? 'Entrate cumulative nel tempo' : 'Uscite cumulative nel tempo';
+}
+function toggleBudgetLineMode() {
+  budgetLineMode = budgetLineMode === 'in' ? 'out' : 'in';
+  const t = document.getElementById('budget-line-title');
+  if (t) t.textContent = budgetLineTitle();
+  drawBudgetLineChart();
+}
+
 function drawBudgetLineChart() {
   const canvas = document.getElementById('budget-line-chart');
   const emptyEl = document.getElementById('budget-line-empty');
@@ -2978,9 +2994,19 @@ function drawBudgetLineChart() {
   }
   canvas.style.display='block'; if(emptyEl) emptyEl.style.display='none';
 
+  // Vista scelta con le frecce: entrate (verde) oppure uscite (rosso, mostrate come valori positivi).
+  // I colori del canvas sono scritti in chiaro: il canvas non legge le variabili CSS.
+  const isIn = budgetLineMode === 'in';
+  const lineCol = isIn ? '#00c97a' : '#ff4060';
+  const lineRgb = isIn ? '0,201,122' : '255,64,96';
+  const titleEl = document.getElementById('budget-line-title');
+  if (titleEl) titleEl.textContent = budgetLineTitle();
+  const inMode = e => isIn ? e.amount > 0 : e.amount < 0;
+
   const data = months.map(m => ({
     month: m,
-    cumulative: budgetEntries.filter(e=>e.date.slice(0,7)<=m).reduce((s,e)=>s+e.amount,0)
+    monthly: budgetEntries.filter(e=>e.date.slice(0,7)===m && inMode(e)).reduce((s,e)=>s+Math.abs(e.amount),0),
+    cumulative: budgetEntries.filter(e=>e.date.slice(0,7)<=m && inMode(e)).reduce((s,e)=>s+Math.abs(e.amount),0)
   }));
 
   const ctx = canvas.getContext('2d');
@@ -3016,18 +3042,18 @@ function drawBudgetLineChart() {
   data.forEach((d,i)=>ctx.lineTo(toX(i),toY(d.cumulative)));
   ctx.lineTo(toX(data.length-1),zeroY); ctx.closePath();
   const grad=ctx.createLinearGradient(0,pad.top,0,pad.top+cH);
-  grad.addColorStop(0,'rgba(0,201,122,0.2)'); grad.addColorStop(1,'rgba(0,201,122,0.02)');
+  grad.addColorStop(0,`rgba(${lineRgb},0.2)`); grad.addColorStop(1,`rgba(${lineRgb},0.02)`);
   ctx.fillStyle=grad; ctx.fill();
 
   // Line
   ctx.beginPath();
   data.forEach((d,i)=>i===0?ctx.moveTo(toX(i),toY(d.cumulative)):ctx.lineTo(toX(i),toY(d.cumulative)));
-  ctx.strokeStyle='var(--green)'; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
+  ctx.strokeStyle=lineCol; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
 
   // Dots
   data.forEach((d,i)=>{
     ctx.beginPath(); ctx.arc(toX(i),toY(d.cumulative),3.5,0,Math.PI*2);
-    ctx.fillStyle=d.cumulative>=0?'var(--green)':'var(--red)';
+    ctx.fillStyle=lineCol;
     ctx.fill(); ctx.strokeStyle='#12121e'; ctx.lineWidth=1.5; ctx.stroke();
   });
 
@@ -3057,9 +3083,11 @@ function drawBudgetLineChart() {
     const idx=Math.round((mx-pad.left)/(cW/Math.max(n-1,1)));
     if(idx<0||idx>=n){hideBudgetTooltip();return;}
     const d=data[idx];const[y,mm]=d.month.split('-');
-    const col=d.cumulative>=0?'var(--green)':'var(--red)';
+    const col=budgetLineMode==='in'?'var(--green)':'var(--red)';
+    const lbl=budgetLineMode==='in'?'Entrate':'Uscite';
     showBudgetTooltip(e,`<div style="font-weight:700;color:var(--text);margin-bottom:4px">${['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'][parseInt(mm)-1]} ${y}</div>
-      <div>Saldo totale: <strong style="color:${col}">${d.cumulative>=0?'+':''}€${d.cumulative.toFixed(2)}</strong></div>`);
+      <div>${lbl} del mese: <strong style="color:${col}">€${d.monthly.toFixed(2)}</strong></div>
+      <div>${lbl} totali: <strong style="color:${col}">€${d.cumulative.toFixed(2)}</strong></div>`);
   };
   canvas._ttLeave=hideBudgetTooltip;
   canvas.addEventListener('mousemove',canvas._ttListener);
