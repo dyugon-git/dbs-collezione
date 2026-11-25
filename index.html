@@ -248,6 +248,7 @@
     gap: 4px;
   }
   .card-thumb .card-code    { font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: 0.5px; }
+  .box-tag { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 1px 5px; border-radius: 4px; background: rgba(74,158,255,0.15); color: var(--blue2); border: 1px solid rgba(74,158,255,0.35); vertical-align: middle; }
   .card-thumb .card-name    { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card-thumb .card-price   { font-size: 11px; color: var(--accent2); font-weight: 600; }
   .card-thumb .status-emoji { font-size: 14px; line-height: 1; flex-shrink: 0; }
@@ -1315,6 +1316,11 @@ body.guest-mode .budget-delete-btn{display:none !important;}
     <button class="filter-pill"        data-filter="missing" onclick="setFilter('missing',this)">❌ <span class="count-badge" id="cnt-missing">0</span></button>
     <button class="filter-pill"        data-filter="fav"     onclick="setFilter('fav',this)">❤️ <span class="count-badge" id="cnt-fav">0</span></button>
   </div>
+  <div class="filter-group">
+    <button class="filter-pill active" data-kind="all"    onclick="setKind('all',this)">Tutto</button>
+    <button class="filter-pill"        data-kind="cards"  onclick="setKind('cards',this)">Carte</button>
+    <button class="filter-pill"        data-kind="sealed" onclick="setKind('sealed',this)">📦 Box</button>
+  </div>
   <div class="separator"></div>
   <div class="separator"></div>
   <div class="sort-group">
@@ -1802,7 +1808,14 @@ body.guest-mode .budget-delete-btn{display:none !important;}
   <div class="modal">
     <h2 id="modal-title">Aggiungi carta</h2>
     <div class="form-field">
-      <label>Codice carta * <span style="font-weight:400;color:var(--text3);font-size:11px">(es. FB01-140 — il set viene ricavato dal codice)</span></label>
+      <label>Tipo</label>
+      <select id="f-type" onchange="onTypeChange()">
+        <option value="card">Carta</option>
+        <option value="sealed">📦 Box sealed</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Codice carta * <span id="f-code-hint" style="font-weight:400;color:var(--text3);font-size:11px">(es. FB01-140 — il set viene ricavato dal codice)</span></label>
       <input type="text" id="f-code" placeholder="es. FB01-140" oninput="this.value=this.value.toUpperCase(); updateImgPreview()">
     </div>
     <div class="form-field">
@@ -1819,7 +1832,7 @@ body.guest-mode .budget-delete-btn{display:none !important;}
       </select>
     </div>
     <div class="form-row3">
-      <div class="form-field">
+      <div class="form-field" id="f-rarity-wrap">
         <label>Rarità</label>
         <select id="f-rarity" id="f-rarity">
           <option value="">— nessuna —</option>
@@ -1918,6 +1931,8 @@ function getImgSrc(code, game, rarity) {
   const folder = getImgFolder().replace(/\/?$/, '/');
   const c = code.toUpperCase();
   const localSrcs = [folder+c+'.jpg', folder+c+'.png', folder+c+'.webp', folder+c+'.jpeg'];
+  // Box sealed (codice tipo FB10-BOX): sui siti ufficiali non esiste, uso direttamente la cartella locale
+  if (/-BOX$/.test(c)) return localSrcs;
   const viaProxy = (path) => 'https://images.weserv.nl/?url=' + encodeURIComponent(path);
   if (game === 'Dragon Ball') {
 	const suffix = code === 'FS08-01'
@@ -1952,6 +1967,14 @@ function setFilter(f, btn) {
   btn.classList.add('active');
   renderGrid();
 }
+// Filtro Tutto / Carte / Box (usa data-kind per non interferire con i pulsanti di data-filter)
+let activeKind = 'all'; // 'all' | 'cards' | 'sealed'
+function setKind(k, btn) {
+  activeKind = k;
+  document.querySelectorAll('[data-kind]').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderGrid();
+}
 function setRarity(r, btn) {
   activeRarity = r;
   renderGrid();
@@ -1965,6 +1988,8 @@ function getFiltered() {
     if (activeFilter === 'have'    && c.status !== 'have')    return false;
     if (activeFilter === 'missing' && c.status !== 'missing') return false;
     if (activeFilter === 'fav'     && !c.fav)                    return false;
+    if (activeKind === 'cards'  && c.sealed)  return false;
+    if (activeKind === 'sealed' && !c.sealed) return false;
     if (activeRarity && c.rarity !== activeRarity) return false;
     if (setVal && c.set !== setVal) return false;
     if (q && !c.code.toLowerCase().includes(q) && !(c.name||'').toLowerCase().includes(q)) return false;
@@ -1980,10 +2005,14 @@ function renderGrid() {
 
   // Stats (always from all cards)
   const gamePool = currentGame ? cards.filter(c=>(c.game||'Dragon Ball')===currentGame) : cards;
-  const total   = gamePool.length;
-  const have    = gamePool.filter(c=>c.status==='have').length;
-  const missing = gamePool.filter(c=>c.status==='missing').length;
+  // Conteggi: solo carte (i box restano fuori). Il valore in € invece comprende anche i box.
+  const cardPool = cardsOnly(gamePool);
+  const total   = cardPool.length;
+  const have    = cardPool.filter(c=>c.status==='have').length;
+  const missing = cardPool.filter(c=>c.status==='missing').length;
   const value   = gamePool.filter(c=>c.status==='have'&&hasWorth(c)).reduce((a,c)=>a+cardWorth(c),0);
+  // Contatori dei pulsanti Tutte/✅/❌/❤️: contano i box solo se è selezionato il filtro "Box"
+  const countPool = activeKind === 'sealed' ? gamePool.filter(c=>c.sealed) : cardPool;
   document.getElementById('stat-total').textContent   = total;
   document.getElementById('stat-have').textContent    = have;
   document.getElementById('stat-missing').textContent = missing;
@@ -1997,10 +2026,10 @@ function renderGrid() {
   } else {
     if (iconEl)  { iconEl.textContent = ''; iconEl.style.display = 'none'; }
   }
-  document.getElementById('cnt-all').textContent      = total;
-  document.getElementById('cnt-have').textContent     = have;
-  document.getElementById('cnt-missing').textContent  = missing;
-  const favCount = document.getElementById('cnt-fav'); if(favCount) favCount.textContent = gamePool.filter(c=>c.fav).length;
+  document.getElementById('cnt-all').textContent      = countPool.length;
+  document.getElementById('cnt-have').textContent     = countPool.filter(c=>c.status==='have').length;
+  document.getElementById('cnt-missing').textContent  = countPool.filter(c=>c.status==='missing').length;
+  const favCount = document.getElementById('cnt-fav'); if(favCount) favCount.textContent = countPool.filter(c=>c.fav).length;
 
   // Populate set filter (only sets of current game)
   const setsPool = currentGame ? cards.filter(c=>(c.game||'Dragon Ball')===currentGame) : cards;
@@ -2036,7 +2065,6 @@ function renderGrid() {
 
       container.innerHTML = sortedKeys.map(setKey => {
         const grpCards = groups[setKey];
-        const haveCount = grpCards.filter(c=>c.status==='have').length;
         const haveValue = grpCards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
         const missingValue = grpCards.filter(c=>c.status==='missing'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
@@ -2045,7 +2073,7 @@ function renderGrid() {
         return `<div class="rarity-group${isCollapsed ? ' collapsed' : ''}">
           <div class="rarity-header" onclick="toggleGroupCollapse('set:${setKey.replace(/'/g,"\\'")}', event)">
             <span class="rarity-label none" style="font-size:12px;letter-spacing:1px">${esc(setKey)}</span>
-            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}${missingStr}</span>
+            <span class="rarity-count">${groupCountStr(grpCards)}${valueStr}${missingStr}</span>
             <div class="rarity-divider"></div>
             <span class="rarity-collapse-icon">▼</span>
           </div>
@@ -2057,7 +2085,7 @@ function renderGrid() {
       // Group by rarity, preserving order SCR★ > L★ > SR★ > (no rarity)
       const groups = {};
       filtered.forEach(card => {
-        const r = card.rarity || '';
+        const r = card.sealed ? '__BOX__' : (card.rarity || '');
         if (!groups[r]) groups[r] = [];
         groups[r].push(card);
       });
@@ -2068,8 +2096,7 @@ function renderGrid() {
       container.innerHTML = sortedKeys.map(r => {
         const grpCards = groups[r];
         const rKey = RARITY_KEY[r] || 'none';
-        const label = r || 'Rarità non specificata';
-        const haveCount = grpCards.filter(c=>c.status==='have').length;
+        const label = rarityGroupLabel(r);
         const haveValue = grpCards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
         const missingValue = grpCards.filter(c=>c.status==='missing'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
@@ -2080,7 +2107,7 @@ function renderGrid() {
         const header = showHeaders ? `
           <div class="rarity-header" onclick="toggleGroupCollapse('${groupKey.replace(/'/g,"\\'")}', event)">
             <span class="rarity-label ${rKey}">${label}</span>
-            <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}${missingStr}</span>
+            <span class="rarity-count">${groupCountStr(grpCards)}${valueStr}${missingStr}</span>
             <div class="rarity-divider"></div>
             <span class="rarity-collapse-icon">▼</span>
           </div>` : '';
@@ -2112,7 +2139,7 @@ function cardThumbHTML(c) {
     </div>
     <div class="card-footer">
       <div class="footer-top">
-        <span class="card-code">${esc(c.code)}</span>
+        <span class="card-code">${esc(c.code)}${c.sealed ? ' <span class="box-tag">BOX</span>' : ''}</span>
         <div style="display:flex;align-items:center;gap:4px;">
           <button class="fav-btn${c.fav?' fav-active':''}" onclick="event.stopPropagation();toggleFav('${c.id}')" title="${c.fav?'Rimuovi dai preferiti':'Aggiungi ai preferiti'}">${c.fav?'❤️':'🤍'}</button>
           <span class="status-emoji">${statusEmoji}</span>
@@ -2147,7 +2174,7 @@ function buildDetailHTML(card) {
         <div class="detail-name">${esc(card.name||'—')}</div>
         <div class="detail-set">${esc(card.set||'Set sconosciuto')}</div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-        <span class="rarity-badge-detail ${rKey}">${card.rarity||'Rarità non specificata'}</span>
+        <span class="rarity-badge-detail ${rKey}">${card.sealed ? '📦 Box sealed' : (card.rarity||'Rarità non specificata')}</span>
         <span style="font-size:18px;line-height:1">${GAME_ICONS[card.game||'Dragon Ball']||'🃏'}</span>
         </div>
       </div>
@@ -2295,11 +2322,27 @@ function openModal(id) {
   document.getElementById('f-value').value  = card ? (card.value||'') : '';
   document.getElementById('f-url').value    = card ? (card.url||'') : '';
   document.getElementById('f-justtcgid').value = card ? (card.justtcgId||'') : '';
+  document.getElementById('f-type').value = (card && card.sealed) ? 'sealed' : 'card';
+  onTypeChange();
   updateImgPreview();
   document.getElementById('modal-bg').classList.add('open');
   setTimeout(()=>document.getElementById('f-code').focus(), 100);
 }
 function updateImgPreview() { /* removed */ }
+
+// Tipo "Carta" / "Box sealed": un box non ha rarità, il codice segue il formato ESPANSIONE-BOX
+function onTypeChange() {
+  const sealed = document.getElementById('f-type').value === 'sealed';
+  document.getElementById('f-rarity-wrap').style.display = sealed ? 'none' : '';
+  const hint = document.getElementById('f-code-hint');
+  if (hint) hint.textContent = sealed
+    ? "(es. FB10-BOX — la parte prima del trattino è l'espansione)"
+    : '(es. FB01-140 — il set viene ricavato dal codice)';
+  document.getElementById('f-code').placeholder = sealed ? 'es. FB10-BOX' : 'es. FB01-140';
+  const name = document.getElementById('f-name');
+  if (sealed && !name.value.trim()) name.value = 'Booster Box';
+  else if (!sealed && name.value === 'Booster Box') name.value = '';
+}
 function closeModal() { document.getElementById('modal-bg').classList.remove('open'); editingId = null; }
 function closeModalOnBg(e) { if (e.target === document.getElementById('modal-bg')) closeModal(); }
 
@@ -2307,8 +2350,9 @@ function saveCard() {
   const code = document.getElementById('f-code').value.trim().toUpperCase();
   if (!code) { alert('Il codice carta è obbligatorio.'); return; }
   const dup = cards.find(c => c.code === code && c.id !== editingId);
-  if (dup) { alert('Esiste già una carta con questo codice!'); return; }
+  if (dup) { alert('Esiste già una carta o un box con questo codice!'); return; }
 
+  const sealed = document.getElementById('f-type').value === 'sealed';
   const game = document.getElementById('f-game').value;
   // Le carte da Structure Deck (Dragon Ball, codici tipo "FS01-01", "FS02-01"...) vengono
   // raggruppate tutte in un'unica espansione "FS", invece di una per ogni structure deck
@@ -2320,7 +2364,8 @@ function saveCard() {
     set,
     game,
     name:   document.getElementById('f-name').value.trim(),
-    rarity: document.getElementById('f-rarity').value,
+    rarity: sealed ? '' : document.getElementById('f-rarity').value,
+    sealed: sealed || undefined, // solo i box hanno il campo (undefined = non viene salvato nel JSON)
     status: document.getElementById('f-status').value,
     price:  document.getElementById('f-price').value ? parseFloat(document.getElementById('f-price').value) : null,
     value:  document.getElementById('f-value').value ? parseFloat(document.getElementById('f-value').value) : null,
@@ -2331,12 +2376,12 @@ function saveCard() {
   if (editingId) {
     const idx = cards.findIndex(c => c.id === editingId);
     cards[idx] = { ...cards[idx], ...data };
-    toast('Carta aggiornata', 'success');
+    toast(sealed ? 'Box aggiornato' : 'Carta aggiornata', 'success');
   } else {
     data.id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
     cards.push(data);
     selectedId = data.id;
-    toast('Carta aggiunta', 'success');
+    toast(sealed ? 'Box aggiunto' : 'Carta aggiunta', 'success');
   }
   saveCards();
   closeModal();
@@ -3701,7 +3746,7 @@ function renderAlbumPickerResults() {
   const raritySel = document.getElementById('album-picker-rarity');
   const rarity = raritySel ? raritySel.value : '';
 
-  let pool = cards.filter(c => (c.game || 'Dragon Ball') === album.game);
+  let pool = cards.filter(c => !c.sealed && (c.game || 'Dragon Ball') === album.game);
   if (albumPickerFilter === 'have')    pool = pool.filter(c => c.status === 'have');
   if (albumPickerFilter === 'missing') pool = pool.filter(c => c.status !== 'have');
   if (rarity) pool = pool.filter(c => c.rarity === rarity);
@@ -4009,6 +4054,20 @@ function hasWorth(c) {
 function hasNum(x) {
   return x !== undefined && x !== null && x !== '';
 }
+
+// --- BOX SEALED ---
+// I box stanno nella stessa lista delle carte e si riconoscono dal campo "sealed".
+// Contano nei valori in € (Valore, spesi, Costo mancanti) ma NON nei conteggi di carte.
+function cardsOnly(list) { return list.filter(c => !c.sealed); }
+function groupCountStr(grp) {
+  const cs = grp.filter(c => !c.sealed), bx = grp.filter(c => c.sealed);
+  const parts = [];
+  if (cs.length) parts.push(`${cs.filter(c => c.status === 'have').length}/${cs.length}`);
+  if (bx.length) parts.push(`📦 ${bx.filter(c => c.status === 'have').length}/${bx.length}`);
+  return parts.join(' · ');
+}
+// Etichetta di un gruppo per rarità (i box hanno un gruppo tutto loro)
+function rarityGroupLabel(key) { return key === '__BOX__' ? '📦 Box sealed' : (key || 'Rarità non specificata'); }
 function valueColor(price, value) {
   const p = parseFloat(price), v = parseFloat(value);
   if (v > p) return 'var(--green)';
@@ -4045,9 +4104,11 @@ function renderGameHome() {
   // Global stats across all games
   const gsEl = document.getElementById('game-global-stats');
   if (gsEl) {
-    const totalCards   = cards.length;
-    const totalHave    = cards.filter(c=>c.status==='have').length;
-    const totalMissing = cards.filter(c=>c.status==='missing').length;
+    // Conteggi solo carte; i valori in € comprendono anche i box sealed
+    const onlyCards    = cardsOnly(cards);
+    const totalCards   = onlyCards.length;
+    const totalHave    = onlyCards.filter(c=>c.status==='have').length;
+    const totalMissing = onlyCards.filter(c=>c.status==='missing').length;
     const totalValue   = cards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
     const totalGames   = new Set(cards.map(c=>c.game||'Dragon Ball')).size;
     gsEl.innerHTML = [
@@ -4064,12 +4125,13 @@ function renderGameHome() {
   }
 
   const gameStats = GAMES.map(game => {
-    const gameCards = cards.filter(c => (c.game || 'Dragon Ball') === game);
+    const allOfGame = cards.filter(c => (c.game || 'Dragon Ball') === game);
+    const gameCards = cardsOnly(allOfGame); // conteggi: senza box
     const have    = gameCards.filter(c => c.status === 'have').length;
     const missing = gameCards.filter(c => c.status === 'missing').length;
-    const value   = gameCards.filter(c => c.status === 'have' && hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
-    return { game, gameCards, have, missing, value };
-  }).filter(g => g.gameCards.length > 0);
+    const value   = allOfGame.filter(c => c.status === 'have' && hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0); // valore: con i box
+    return { game, gameCards, have, missing, value, hasAny: allOfGame.length > 0 };
+  }).filter(g => g.hasAny);
 
   if (!gameStats.length) {
     grid.innerHTML = `<div class="game-card-add">
@@ -4228,7 +4290,7 @@ function renderTable(filtered) {
     // group by rarity
     groups = {};
     filtered.forEach(card => {
-      const k = card.rarity || '';
+      const k = card.sealed ? '__BOX__' : (card.rarity || '');
       if (!groups[k]) groups[k] = [];
       groups[k].push(card);
     });
@@ -4260,7 +4322,7 @@ function renderTable(filtered) {
       const rKey     = RARITY_KEY[card.rarity] || 'none';
       const misCls   = card.status === 'missing' ? ' missing' : '';
       const selCls   = card.id === selectedId ? ' selected' : '';
-      const rarLabel = card.rarity || '—';
+      const rarLabel = card.sealed ? '📦 BOX' : (card.rarity || '—');
       const priceStr = card.price ? '€'+parseFloat(card.price).toFixed(2) : '—';
 
       if (isMobile) {
@@ -4296,21 +4358,20 @@ function renderTable(filtered) {
   const showHeaders = groupKeys.length > 1 || (groupBy === 'rarity' && activeRarity === '');
   const html = groupKeys.map(key => {
     const grpCards = groups[key];
-    const haveCount = grpCards.filter(c=>c.status==='have').length;
     const haveValue = grpCards.filter(c=>c.status==='have'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
     const valueStr = haveValue > 0 ? ` · <span style="color:var(--accent2);font-weight:600">€${haveValue.toFixed(0)}</span>` : '';
         const missingValue = grpCards.filter(c=>c.status==='missing'&&hasWorth(c)).reduce((s,c)=>s+cardWorth(c),0);
         const missingStr = missingValue > 0 ? ` <span style="color:var(--text3);font-weight:400;font-size:11px">(−€${missingValue.toFixed(0)})</span>` : '';
     const rKey = RARITY_KEY[key] || 'none';
     const labelCls = groupBy === 'rarity' ? rKey : 'none';
-    const label = key || 'Rarità non specificata';
+    const label = rarityGroupLabel(key);
 
     const groupKey = (groupBy === 'set' ? 'set:' : 'rarity:') + key;
     const isCollapsed = collapsedGroups.has(groupKey);
     const header = showHeaders ? `
       <div class="rarity-header" style="margin-bottom:8px" onclick="toggleGroupCollapse('${groupKey.replace(/'/g,"\\'")}', event)">
         <span class="rarity-label ${labelCls}">${esc(label)}</span>
-        <span class="rarity-count">${haveCount}/${grpCards.length}${valueStr}${missingStr}</span>
+        <span class="rarity-count">${groupCountStr(grpCards)}${valueStr}${missingStr}</span>
         <div class="rarity-divider"></div>
         <span class="rarity-collapse-icon">▼</span>
       </div>` : '';
@@ -4422,7 +4483,7 @@ function setChartOpt(side, key, val, btn) {
 }
 
 function populateSetFilter(selectId, side) {
-  const filterPool = currentGame ? cards.filter(c=>(c.game||'Dragon Ball')===currentGame) : cards;
+  const filterPool = cardsOnly(currentGame ? cards.filter(c=>(c.game||'Dragon Ball')===currentGame) : cards);
   const sets = [...new Set(filterPool.map(c=>c.set).filter(Boolean))].sort();
   const sel = document.getElementById(selectId);
   const cur = sel.value;
@@ -4431,12 +4492,14 @@ function populateSetFilter(selectId, side) {
 }
 
 function renderStats() {
-  const gameCards = currentGame ? cards.filter(c => (c.game||'Dragon Ball') === currentGame) : cards;
+  const allPool   = currentGame ? cards.filter(c => (c.game||'Dragon Ball') === currentGame) : cards;
+  const gameCards = cardsOnly(allPool); // conteggi: solo carte, senza box
   const owned   = gameCards.filter(c => c.status === 'have');
   const missing = gameCards.filter(c => c.status === 'missing');
-  const totalVal = owned.reduce((s,c) => s + cardWorth(c), 0);
-  const missingVal = missing.reduce((s,c) => s + cardWorth(c), 0);
-  const totalSpent = owned.reduce((s,c) => s + (parseFloat(c.price)||0), 0);
+  // Valori in €: comprendono anche i box sealed
+  const totalVal = allPool.filter(c => c.status === 'have').reduce((s,c) => s + cardWorth(c), 0);
+  const missingVal = allPool.filter(c => c.status === 'missing').reduce((s,c) => s + cardWorth(c), 0);
+  const totalSpent = allPool.filter(c => c.status === 'have').reduce((s,c) => s + (parseFloat(c.price)||0), 0);
   const totalCards = gameCards.length;
 
   // KPIs
@@ -4606,7 +4669,7 @@ function renderChart(side) {
   const setFilter = showFilter ? filterSet.value : '';
 
   // Select base pool
-  const statsPool = currentGame ? cards.filter(c => (c.game||'Dragon Ball') === currentGame) : cards;
+  const statsPool = cardsOnly(currentGame ? cards.filter(c => (c.game||'Dragon Ball') === currentGame) : cards); // i box non hanno rarità: i grafici restano sulle sole carte
   let pool = statsPool.filter(c => c.status === (opts.mode === 'owned' ? 'have' : 'missing'));
   if (setFilter) pool = pool.filter(c => c.set === setFilter);
 
