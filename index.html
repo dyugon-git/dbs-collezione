@@ -1316,11 +1316,6 @@ body.guest-mode .budget-delete-btn{display:none !important;}
     <button class="filter-pill"        data-filter="missing" onclick="setFilter('missing',this)">❌ <span class="count-badge" id="cnt-missing">0</span></button>
     <button class="filter-pill"        data-filter="fav"     onclick="setFilter('fav',this)">❤️ <span class="count-badge" id="cnt-fav">0</span></button>
   </div>
-  <div class="filter-group">
-    <button class="filter-pill active" data-kind="all"    onclick="setKind('all',this)">Tutto</button>
-    <button class="filter-pill"        data-kind="cards"  onclick="setKind('cards',this)">Carte</button>
-    <button class="filter-pill"        data-kind="sealed" onclick="setKind('sealed',this)">📦 Box</button>
-  </div>
   <div class="separator"></div>
   <div class="separator"></div>
   <div class="sort-group">
@@ -1967,14 +1962,7 @@ function setFilter(f, btn) {
   btn.classList.add('active');
   renderGrid();
 }
-// Filtro Tutto / Carte / Box (usa data-kind per non interferire con i pulsanti di data-filter)
-let activeKind = 'all'; // 'all' | 'cards' | 'sealed'
-function setKind(k, btn) {
-  activeKind = k;
-  document.querySelectorAll('[data-kind]').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
-  renderGrid();
-}
+
 function setRarity(r, btn) {
   activeRarity = r;
   renderGrid();
@@ -1988,8 +1976,6 @@ function getFiltered() {
     if (activeFilter === 'have'    && c.status !== 'have')    return false;
     if (activeFilter === 'missing' && c.status !== 'missing') return false;
     if (activeFilter === 'fav'     && !c.fav)                    return false;
-    if (activeKind === 'cards'  && c.sealed)  return false;
-    if (activeKind === 'sealed' && !c.sealed) return false;
     if (activeRarity && c.rarity !== activeRarity) return false;
     if (setVal && c.set !== setVal) return false;
     if (q && !c.code.toLowerCase().includes(q) && !(c.name||'').toLowerCase().includes(q)) return false;
@@ -2011,8 +1997,6 @@ function renderGrid() {
   const have    = cardPool.filter(c=>c.status==='have').length;
   const missing = cardPool.filter(c=>c.status==='missing').length;
   const value   = gamePool.filter(c=>c.status==='have'&&hasWorth(c)).reduce((a,c)=>a+cardWorth(c),0);
-  // Contatori dei pulsanti Tutte/✅/❌/❤️: contano i box solo se è selezionato il filtro "Box"
-  const countPool = activeKind === 'sealed' ? gamePool.filter(c=>c.sealed) : cardPool;
   document.getElementById('stat-total').textContent   = total;
   document.getElementById('stat-have').textContent    = have;
   document.getElementById('stat-missing').textContent = missing;
@@ -2026,10 +2010,10 @@ function renderGrid() {
   } else {
     if (iconEl)  { iconEl.textContent = ''; iconEl.style.display = 'none'; }
   }
-  document.getElementById('cnt-all').textContent      = countPool.length;
-  document.getElementById('cnt-have').textContent     = countPool.filter(c=>c.status==='have').length;
-  document.getElementById('cnt-missing').textContent  = countPool.filter(c=>c.status==='missing').length;
-  const favCount = document.getElementById('cnt-fav'); if(favCount) favCount.textContent = countPool.filter(c=>c.fav).length;
+  document.getElementById('cnt-all').textContent      = total;
+  document.getElementById('cnt-have').textContent     = have;
+  document.getElementById('cnt-missing').textContent  = missing;
+  const favCount = document.getElementById('cnt-fav'); if(favCount) favCount.textContent = cardPool.filter(c=>c.fav).length;
 
   // Populate set filter (only sets of current game)
   const setsPool = currentGame ? cards.filter(c=>(c.game||'Dragon Ball')===currentGame) : cards;
